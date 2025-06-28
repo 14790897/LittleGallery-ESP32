@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Little Gallery ESP32</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🖼️ Little Gallery ESP32</h1>
+            <p class="subtitle">ESP32-C3 图片库系统</p>
+        </header>
+        
+        <div class="upload-section">
+            <h3>📤 上传图片</h3>
+            <div class="upload-area" id="uploadArea">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="file" id="fileInput" accept=".jpg,.jpeg,.bmp" multiple>
+                    <label for="fileInput" class="upload-label">
+                        <span class="upload-icon">📁</span>
+                        <span>选择图片文件或拖拽到此处</span>
+                        <span class="upload-hint">支持 JPG, JPEG, BMP 格式</span>
+                    </label>
+                    <button type="submit" class="upload-btn">上传</button>
+                </form>
+            </div>
+            <div id="uploadStatus" class="status-message"></div>
+            <div id="uploadProgress" class="progress-bar" style="display: none;">
+                <div class="progress-fill"></div>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <h3>🎮 图片控制</h3>
+            <div class="control-buttons">
+                <button onclick="previousImage()" class="control-btn">⬅️ 上一张</button>
+                <button onclick="nextImage()" class="control-btn">➡️ 下一张</button>
+                <button onclick="refreshImageList()" class="control-btn">🔄 刷新</button>
+                <button onclick="toggleSlideshow()" class="control-btn" id="slideshowBtn">▶️ 幻灯片</button>
+            </div>
+            <div id="currentImageInfo" class="current-image-info"></div>
+        </div>
+        
+        <div class="image-list-section">
+            <h3>📁 图片列表</h3>
+            <div class="list-controls">
+                <button onclick="selectAllImages()" class="list-btn">全选</button>
+                <button onclick="deleteSelectedImages()" class="list-btn delete-btn">删除选中</button>
+                <span class="image-count" id="imageCount">共 0 张图片</span>
+            </div>
+            <div id="imageListContainer" class="image-list"></div>
+        </div>
+        
+        <div class="system-info">
+            <h3>📊 系统信息</h3>
+            <div id="systemStatus" class="system-status">
+                <div class="status-item">
+                    <span class="status-label">WiFi状态:</span>
+                    <span class="status-value" id="wifiStatus">连接中...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">IP地址:</span>
+                    <span class="status-value" id="ipAddress">获取中...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">存储空间:</span>
+                    <span class="status-value" id="storageInfo">计算中...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">运行时间:</span>
+                    <span class="status-value" id="uptime">计算中...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 确认对话框 -->
+    <div id="confirmDialog" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>确认操作</h3>
+            <p id="confirmMessage"></p>
+            <div class="modal-buttons">
+                <button onclick="closeConfirmDialog()" class="btn-cancel">取消</button>
+                <button onclick="confirmAction()" class="btn-confirm">确认</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 加载指示器 -->
+    <div id="loadingIndicator" class="loading" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>处理中...</p>
+    </div>
+    
+    <script src="/app.js"></script>
+</body>
+</html>
