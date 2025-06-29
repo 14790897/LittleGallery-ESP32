@@ -49,16 +49,23 @@ namespace Display
   
   void ILI9341Manager::setupDisplay()
   {
-    // 设置横屏显示
+    // 设置横屏显示 (320x240)
     tft.setRotation(1);
-    
+
+    // 确保颜色格式正确 - ILI9341使用RGB565
+    // Adafruit_ILI9341库默认就是RGB565格式，无需额外设置
+
     // 清屏
     tft.fillScreen(ILI9341_BLACK);
-    
+
     // 设置默认文本参数
     tft.setTextWrap(true);
     tft.setTextColor(ILI9341_WHITE);
     tft.setTextSize(1);
+
+    // 测试颜色显示
+    Serial.println("Testing color display...");
+    testColorDisplay();
   }
   
   void ILI9341Manager::setRotation(uint8_t rotation)
@@ -77,7 +84,38 @@ namespace Display
   {
     tft.fillScreen(color);
   }
-  
+
+  void ILI9341Manager::testColorDisplay()
+  {
+    // 测试基本颜色显示是否正确
+    const uint16_t colors[] = {
+        ILI9341_RED,     // 红色
+        ILI9341_GREEN,   // 绿色
+        ILI9341_BLUE,    // 蓝色
+        ILI9341_YELLOW,  // 黄色
+        ILI9341_MAGENTA, // 洋红
+        ILI9341_CYAN,    // 青色
+        ILI9341_WHITE    // 白色
+    };
+
+    const char *colorNames[] = {
+        "RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"};
+
+    // 在屏幕上绘制颜色条
+    int barWidth = SCREEN_WIDTH / 7;
+    for (int i = 0; i < 7; i++)
+    {
+      tft.fillRect(i * barWidth, 0, barWidth, 30, colors[i]);
+      Serial.printf("Color test %s: 0x%04X\n", colorNames[i], colors[i]);
+    }
+
+    // 等待2秒后清屏
+    delay(2000);
+    tft.fillScreen(ILI9341_BLACK);
+
+    Serial.println("Color test completed");
+  }
+
   void ILI9341Manager::fillScreen(uint16_t color)
   {
     tft.fillScreen(color);
@@ -209,15 +247,6 @@ namespace Display
     displayCenteredText(error.c_str(), 120, ILI9341_RED, 1);
   }
   
-  void ILI9341Manager::showImageInfo(const char* filename, int index, int total)
-  {
-    // 在屏幕底部显示图片信息
-    fillRect(0, 220, SCREEN_WIDTH, 20, ILI9341_BLACK);
-    
-    String info = String(filename) + " (" + String(index + 1) + "/" + String(total) + ")";
-    displayText(info.c_str(), 5, 225, ILI9341_WHITE, 1);
-  }
-  
   void ILI9341Manager::showNoImageMessage()
   {
     clearScreen(ILI9341_BLACK);
@@ -238,15 +267,59 @@ namespace Display
     fillRect(0, 100, SCREEN_WIDTH, 40, ILI9341_BLACK);
     displayCenteredText("Loading...", 120, ILI9341_YELLOW, 2);
   }
-  
+
+  void ILI9341Manager::drawFileName(const char *filename)
+  {
+    // 在屏幕底部绘制半透明背景
+    uint16_t rectHeight = 20;
+    uint16_t rectY = tft.height() - rectHeight;
+    uint16_t rectW = tft.width();
+    // 使用dithering创建半透明效果
+    for (int16_t y = 0; y < rectHeight; y++)
+    {
+      for (int16_t x = 0; x < rectW; x++)
+      {
+        if ((x + y) % 2 == 0)
+        {
+          drawPixel(x, rectY + y, ILI9341_BLACK);
+        }
+      }
+    }
+
+    // 在半透明背景上显示文件名
+    String name = String(filename);
+    // 移除路径，只显示文件名
+    int lastSlash = name.lastIndexOf('/');
+    if (lastSlash != -1)
+    {
+      name = name.substring(lastSlash + 1);
+    }
+
+    // 设置文本属性
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextSize(1);
+
+    // 计算文本位置
+    int16_t x1, y1;
+    uint16_t w, h;
+    tft.getTextBounds(name.c_str(), 0, 0, &x1, &y1, &w, &h);
+
+    int16_t textX = (tft.width() - w) / 2;
+    int16_t textY = rectY + (rectHeight - h) / 2;
+
+    // 显示文本
+    tft.setCursor(textX, textY);
+    tft.print(name);
+  }
+
   // ==================== 便捷函数实现 ====================
-  
+
   void setup()
   {
     displayManager.begin();
     displayManager.showStartupScreen();
   }
-  
+
   void clearScreen()
   {
     displayManager.clearScreen();

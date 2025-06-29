@@ -8,11 +8,27 @@ class LittleGallery {
     this.slideshowInterval = null;
     this.confirmCallback = null;
 
+    // 图片预处理设置
+    this.preprocessingSettings = {
+      enabled: true,
+      targetResolution: "auto",
+      quality: 0.8,
+      resizeMode: "contain",
+    };
+
     this.init();
   }
 
   init() {
-    this.setupEventListeners();
+    // 确保DOM完全加载后再设置事件监听器
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => {
+        this.setupEventListeners();
+      });
+    } else {
+      this.setupEventListeners();
+    }
+
     this.refreshImageList();
     this.updateSystemStatus();
 
@@ -22,29 +38,31 @@ class LittleGallery {
   }
 
   setupEventListeners() {
-    // 文件上传
-    const uploadForm = document.getElementById("uploadForm");
     const fileInput = document.getElementById("fileInput");
     const uploadArea = document.getElementById("uploadArea");
 
-    // 文件选择后自动上传
+    if (!fileInput || !uploadArea) {
+      console.error("Required elements for upload not found!");
+      return;
+    }
+
+    // Use a single, reliable 'change' event listener for file selection
     fileInput.addEventListener("change", (e) => {
-      console.log("File input changed:", e.target.files.length, "files");
-      if (e.target.files.length > 0) {
-        console.log("Starting upload...");
-        this.handleUpload(e);
+      const files = e.target.files;
+      if (files.length > 0) {
+        this.processFiles(files);
+        // Reset the input to allow selecting the same file again
+        e.target.value = "";
       }
     });
 
-    uploadForm.addEventListener("submit", (e) => this.handleUpload(e));
-
-    // 拖拽上传
+    // Keep drag and drop functionality
     uploadArea.addEventListener("dragover", (e) => {
       e.preventDefault();
       uploadArea.classList.add("dragover");
     });
 
-    uploadArea.addEventListener("dragleave", () => {
+    uploadArea.addEventListener("dragleave", (e) => {
       uploadArea.classList.remove("dragover");
     });
 
@@ -53,7 +71,6 @@ class LittleGallery {
       uploadArea.classList.remove("dragover");
       const files = e.dataTransfer.files;
       if (files.length > 0) {
-        // 直接处理拖拽的文件，自动上传
         this.handleDroppedFiles(files);
       }
     });
@@ -88,16 +105,120 @@ class LittleGallery {
 
   async processFiles(files) {
     console.log("processFiles called with", files.length, "files");
+
+    if (files.length === 0) {
+      this.showStatus("没有选择文件", "warning");
+      return;
+    }
+
+    // 如果是批量上传（多个文件），显示批量上传界面
+    if (files.length > 1) {
+      await this.processBatchUpload(files);
+    } else {
+      // 单文件上传，使用简单模式
+      await this.processSingleFile(files[0]);
+    }
+  }
+
+  async processSingleFile(file) {
+    console.log("Processing single file:", file.name);
     this.showLoading(true);
 
+    const originalName = file.name;
+
+    if (!this.isValidImageFile(file)) {
+      console.log("Invalid file format:", originalName);
+      this.showStatus(`文件 ${originalName} 格式不支持`, "warning");
+      this.showLoading(false);
+      return;
+    }
+
+    // 生成安全的文件名
+    const safeFileName = this.generateSafeFileName(originalName);
+    console.log("Safe filename:", safeFileName);
+
+    try {
+      console.log("Starting upload for:", safeFileName);
+      await this.uploadFileWithName(file, safeFileName);
+      console.log("Upload successful for:", safeFileName);
+
+      if (safeFileName !== originalName) {
+        this.showStatus(
+          `文件 "${originalName}" 已重命名为 "${safeFileName}" 并上传成功`,
+          "success"
+        );
+      } else {
+        this.showStatus(`文件 ${originalName} 上传成功`, "success");
+      }
+    } catch (error) {
+      console.error("Upload failed for:", originalName, error);
+      this.showStatus(
+        `文件 ${originalName} 上传失败: ${error.message}`,
+        "error"
+      );
+    }
+
+    this.showLoading(false);
+    this.refreshImageList();
+  }
+
+  async processBatchUpload(files) {
+    console.log("Starting batch upload for", files.length, "files");
+
+    // 检查存储空间
+    try {
+      const storageCheck = await this.checkStorageSpace(files);
+      if (!storageCheck.canUpload) {
+        this.showStatus(storageCheck.message, "error");
+        return;
+      }
+      if (storageCheck.warning) {
+        this.showStatus(storageCheck.message, "warning");
+      }
+    } catch (error) {
+      console.warn("Storage check failed:", error);
+      // 继续上传，但给出警告
+      this.showStatus("无法检查存储空间，请注意空间使用", "warning");
+    }
+
+    // 显示批量上传界面
+    this.showBatchUploadProgress(true);
+    this.batchUploadCancelled = false;
+
+    // 初始化进度
+    this.updateBatchProgress(0, files.length, "准备批量上传...");
+
+    let successCount = 0;
+    let failedCount = 0;
+    const results = [];
+
     for (let i = 0; i < files.length; i++) {
+      // 检查是否被取消
+      if (this.batchUploadCancelled) {
+        console.log("Batch upload cancelled by user");
+        break;
+      }
+
       const file = files[i];
       const originalName = file.name;
-      console.log("Processing file:", originalName);
+
+      console.log(`Processing file ${i + 1}/${files.length}:`, originalName);
+
+      // 更新总体进度
+      this.updateBatchProgress(i, files.length, `正在上传: ${originalName}`);
+
+      // 添加文件到进度列表
+      const fileId = this.addFileToProgressList(originalName, "uploading");
 
       if (!this.isValidImageFile(file)) {
         console.log("Invalid file format:", originalName);
-        this.showStatus(`文件 ${originalName} 格式不支持`, "warning");
+        this.updateFileProgress(fileId, "error", "格式不支持");
+        failedCount++;
+        results.push({
+          file: originalName,
+          status: "failed",
+          reason: "格式不支持",
+        });
         continue;
       }
 
@@ -109,26 +230,43 @@ class LittleGallery {
         console.log("Starting upload for:", safeFileName);
         await this.uploadFileWithName(file, safeFileName);
         console.log("Upload successful for:", safeFileName);
-        if (safeFileName !== originalName) {
-          this.showStatus(
-            `文件 "${originalName}" 已重命名为 "${safeFileName}" 并上传成功`,
-            "success"
-          );
-        } else {
-          this.showStatus(`文件 ${originalName} 上传成功`, "success");
-        }
+
+        this.updateFileProgress(fileId, "success", "上传成功");
+        successCount++;
+        results.push({ file: originalName, safeFileName, status: "success" });
       } catch (error) {
         console.error("Upload failed for:", originalName, error);
-        this.showStatus(
-          `文件 ${originalName} 上传失败: ${error.message}`,
-          "error"
-        );
+        this.updateFileProgress(fileId, "error", error.message);
+        failedCount++;
+        results.push({
+          file: originalName,
+          status: "failed",
+          reason: error.message,
+        });
       }
     }
 
-    console.log("All files processed, refreshing list...");
-    this.showLoading(false);
+    // 更新最终进度
+    if (!this.batchUploadCancelled) {
+      this.updateBatchProgress(
+        files.length,
+        files.length,
+        `批量上传完成: ${successCount} 成功, ${failedCount} 失败`
+      );
+
+      // 显示总结
+      this.showBatchUploadSummary(successCount, failedCount, results);
+    } else {
+      this.updateBatchProgress(0, files.length, "批量上传已取消");
+    }
+
+    // 刷新图片列表
     this.refreshImageList();
+
+    // 3秒后隐藏批量上传界面
+    setTimeout(() => {
+      this.showBatchUploadProgress(false);
+    }, 3000);
   }
 
   async uploadFile(file) {
@@ -177,8 +315,8 @@ class LittleGallery {
   }
 
   isValidImageFile(file) {
-    const validTypes = ["image/jpeg", "image/jpg", "image/bmp"];
-    const validExtensions = [".jpg", ".jpeg", ".bmp"];
+    const validTypes = ["image/jpeg", "image/jpg", "image/bmp", "image/png"];
+    const validExtensions = [".jpg", ".jpeg", ".bmp", ".png"];
 
     return (
       validTypes.includes(file.type) ||
@@ -564,6 +702,187 @@ class LittleGallery {
     }
     this.closeConfirmDialog();
   }
+
+  // ==================== 批量上传相关方法 ====================
+
+  showBatchUploadProgress(show) {
+    const progressDiv = document.getElementById("batchUploadProgress");
+    if (progressDiv) {
+      progressDiv.style.display = show ? "block" : "none";
+      if (show) {
+        // 清空之前的进度列表
+        const fileList = document.getElementById("fileProgressList");
+        if (fileList) {
+          fileList.innerHTML = "";
+        }
+      }
+    }
+  }
+
+  updateBatchProgress(current, total, message) {
+    const progressText = document.getElementById("uploadProgressText");
+    const progressCount = document.getElementById("uploadProgressCount");
+    const progressBar = document.getElementById("overallProgressBar");
+
+    if (progressText) {
+      progressText.textContent = message;
+    }
+
+    if (progressCount) {
+      progressCount.textContent = `${current}/${total}`;
+    }
+
+    if (progressBar) {
+      const percentage = total > 0 ? (current / total) * 100 : 0;
+      progressBar.style.width = `${percentage}%`;
+    }
+  }
+
+  addFileToProgressList(fileName, status) {
+    const fileList = document.getElementById("fileProgressList");
+    if (!fileList) return null;
+
+    const fileId = `file_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+    const fileItem = document.createElement("div");
+    fileItem.className = "file-progress-item";
+    fileItem.id = fileId;
+
+    fileItem.innerHTML = `
+      <div class="file-info">
+        <span class="file-name">${fileName}</span>
+        <span class="file-status ${status}">${this.getStatusText(status)}</span>
+      </div>
+      <div class="file-progress-bar">
+        <div class="file-progress-fill"></div>
+      </div>
+    `;
+
+    fileList.appendChild(fileItem);
+    return fileId;
+  }
+
+  updateFileProgress(fileId, status, message) {
+    const fileItem = document.getElementById(fileId);
+    if (!fileItem) return;
+
+    const statusEl = fileItem.querySelector(".file-status");
+    const progressFill = fileItem.querySelector(".file-progress-fill");
+
+    if (statusEl) {
+      statusEl.className = `file-status ${status}`;
+      statusEl.textContent = message || this.getStatusText(status);
+    }
+
+    if (progressFill) {
+      if (status === "success") {
+        progressFill.style.width = "100%";
+        progressFill.style.backgroundColor = "#28a745";
+      } else if (status === "error") {
+        progressFill.style.width = "100%";
+        progressFill.style.backgroundColor = "#dc3545";
+      } else if (status === "uploading") {
+        progressFill.style.width = "50%";
+        progressFill.style.backgroundColor = "#007bff";
+      }
+    }
+  }
+
+  getStatusText(status) {
+    switch (status) {
+      case "uploading":
+        return "上传中...";
+      case "success":
+        return "上传成功";
+      case "error":
+        return "上传失败";
+      default:
+        return "等待中";
+    }
+  }
+
+  showBatchUploadSummary(successCount, failedCount, results) {
+    const totalCount = successCount + failedCount;
+    let message = `批量上传完成！\n`;
+    message += `总计: ${totalCount} 个文件\n`;
+    message += `成功: ${successCount} 个\n`;
+    message += `失败: ${failedCount} 个`;
+
+    if (failedCount > 0) {
+      message += `\n\n失败的文件:\n`;
+      results
+        .filter((r) => r.status === "failed")
+        .forEach((r) => {
+          message += `• ${r.file}: ${r.reason}\n`;
+        });
+    }
+
+    this.showStatus(
+      `批量上传完成: ${successCount} 成功, ${failedCount} 失败`,
+      failedCount > 0 ? "warning" : "success"
+    );
+
+    console.log("Batch upload summary:", message);
+  }
+
+  async checkStorageSpace(files) {
+    try {
+      const response = await fetch("/api/upload-status");
+      const status = await response.json();
+
+      // 估算文件总大小
+      let totalSize = 0;
+      for (const file of files) {
+        totalSize += file.size;
+      }
+
+      const availableSpace = status.available_storage;
+      const storageUsedPercent = status.storage_used_percent;
+
+      console.log("Storage check:", {
+        totalFileSize: totalSize,
+        availableSpace: availableSpace,
+        storageUsedPercent: storageUsedPercent,
+      });
+
+      // 检查是否有足够空间
+      if (totalSize > availableSpace) {
+        return {
+          canUpload: false,
+          message: `存储空间不足！需要 ${(totalSize / 1024 / 1024).toFixed(
+            1
+          )}MB，可用 ${(availableSpace / 1024 / 1024).toFixed(1)}MB`,
+        };
+      }
+
+      // 检查存储空间使用率
+      if (storageUsedPercent > 90) {
+        return {
+          canUpload: false,
+          message: "存储空间已满（>90%），请删除一些图片后再上传",
+        };
+      }
+
+      if (storageUsedPercent > 75) {
+        return {
+          canUpload: true,
+          warning: true,
+          message: `存储空间较少（${storageUsedPercent.toFixed(
+            1
+          )}%），建议适量上传`,
+        };
+      }
+
+      return {
+        canUpload: true,
+        message: `存储空间充足，可上传 ${files.length} 个文件`,
+      };
+    } catch (error) {
+      console.error("Storage check failed:", error);
+      throw error;
+    }
+  }
 }
 
 // 全局实例
@@ -571,33 +890,135 @@ const gallery = new LittleGallery();
 
 // 全局函数（保持向后兼容）
 function nextImage() {
-    gallery.nextImage();
+  gallery.nextImage();
 }
 
 function previousImage() {
-    gallery.previousImage();
+  gallery.previousImage();
 }
 
 function refreshImageList() {
-    gallery.refreshImageList();
+  gallery.refreshImageList();
 }
 
 function toggleSlideshow() {
-    gallery.toggleSlideshow();
+  gallery.toggleSlideshow();
 }
 
 function selectAllImages() {
-    gallery.selectAllImages();
+  gallery.selectAllImages();
 }
 
 function deleteSelectedImages() {
-    gallery.deleteSelectedImages();
+  gallery.deleteSelectedImages();
 }
 
 function closeConfirmDialog() {
-    gallery.closeConfirmDialog();
+  gallery.closeConfirmDialog();
 }
 
 function confirmAction() {
-    gallery.confirmAction();
+  gallery.confirmAction();
+}
+
+// 颜色测试函数
+async function testDisplayColors() {
+  console.log("Testing display colors...");
+
+  try {
+    const response = await fetch("/api/test-colors");
+    const result = await response.json();
+
+    if (result.status === "success") {
+      gallery.showStatus("颜色测试完成！请查看显示屏", "success");
+      console.log("Color test result:", result);
+    } else {
+      gallery.showStatus("颜色测试失败", "error");
+    }
+  } catch (error) {
+    console.error("Color test failed:", error);
+    gallery.showStatus("颜色测试请求失败: " + error.message, "error");
+  }
+}
+
+// 方向控制函数
+async function updateOrientationMode() {
+  const mode = document.getElementById("orientationMode").value;
+  console.log("Updating orientation mode to:", mode);
+
+  try {
+    const formData = new FormData();
+    formData.append("mode", mode);
+
+    const response = await fetch("/api/orientation", {
+      method: "POST",
+      body: formData,
+    });
+
+    const result = await response.json();
+    if (result.status === "success") {
+      gallery.showStatus(`显示模式已设置为: ${mode}`, "success");
+    } else {
+      gallery.showStatus("设置显示模式失败", "error");
+    }
+  } catch (error) {
+    console.error("Update orientation mode failed:", error);
+    gallery.showStatus("设置显示模式请求失败: " + error.message, "error");
+  }
+}
+
+async function updateAutoRotation() {
+  const enabled = document.getElementById("autoRotation").checked;
+  console.log("Updating auto rotation to:", enabled);
+
+  try {
+    const formData = new FormData();
+    formData.append("auto_rotation", enabled.toString());
+
+    const response = await fetch("/api/orientation", {
+      method: "POST",
+      body: formData,
+    });
+
+    const result = await response.json();
+    if (result.status === "success") {
+      gallery.showStatus(`自动旋转已${enabled ? "启用" : "禁用"}`, "success");
+    } else {
+      gallery.showStatus("设置自动旋转失败", "error");
+    }
+  } catch (error) {
+    console.error("Update auto rotation failed:", error);
+    gallery.showStatus("设置自动旋转请求失败: " + error.message, "error");
+  }
+}
+
+async function testOrientation() {
+  console.log("Testing orientation...");
+  gallery.showStatus("正在测试方向设置...", "info");
+
+  // 可以触发显示当前图片来测试方向
+  if (gallery.currentImages.length > 0) {
+    const currentImage = gallery.currentImages[0]; // 使用第一张图片
+    try {
+      const response = await fetch(
+        `/api/set-image?filename=${encodeURIComponent(currentImage)}`
+      );
+      if (response.ok) {
+        gallery.showStatus("方向测试完成！请查看显示屏", "success");
+      } else {
+        gallery.showStatus("方向测试失败", "error");
+      }
+    } catch (error) {
+      gallery.showStatus("方向测试请求失败: " + error.message, "error");
+    }
+  } else {
+    gallery.showStatus("没有图片可供测试", "warning");
+  }
+}
+
+// 批量上传控制函数
+function cancelBatchUpload() {
+  console.log("Cancelling batch upload...");
+  gallery.batchUploadCancelled = true;
+  gallery.showStatus("正在取消批量上传...", "warning");
 }

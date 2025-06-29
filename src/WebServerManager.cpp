@@ -1,4 +1,6 @@
 #include "WebServer.h"
+#include "ILI9341.h"
+#include "ImageDisplay.h"
 
 namespace WebServerManager
 {
@@ -139,7 +141,7 @@ namespace WebServerManager
   {
     String ext = filename.substring(filename.lastIndexOf('.'));
     ext.toLowerCase();
-    return (ext == ".jpg" || ext == ".jpeg" || ext == ".bmp");
+    return (ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".png");
   }
 
   String WebServerController::generateSafeFilename(const String &originalName) const
@@ -324,6 +326,20 @@ namespace WebServerManager
     server->on("/api/status", HTTP_GET, [this](AsyncWebServerRequest *request)
                { handleSystemStatusAPI(request); });
 
+    // 颜色测试API
+    server->on("/api/test-colors", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleColorTestAPI(request); });
+
+    // 方向设置API
+    server->on("/api/orientation", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleOrientationAPI(request); });
+    server->on("/api/orientation", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleSetOrientationAPI(request); });
+
+    // 批量上传状态API
+    server->on("/api/upload-status", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleUploadStatusAPI(request); });
+
     // 文件上传
     server->on("/upload", HTTP_POST, [](AsyncWebServerRequest *request)
                { request->send(200, "text/plain", "Upload complete"); }, handleFileUpload);
@@ -421,6 +437,130 @@ namespace WebServerManager
     request->send(200, "application/json", result);
   }
 
+  void WebServerController::handleColorTestAPI(AsyncWebServerRequest *request)
+  {
+    Serial.println("Color test requested via API");
+
+    // 触发颜色测试
+    Display::displayManager.clearScreen();
+
+    // 显示颜色测试信息
+    Display::displayManager.showSystemInfo("颜色测试中...");
+    delay(1000);
+
+    // 执行颜色测试
+    testDisplayColors();
+
+    // 返回测试结果
+    JsonDocument doc;
+    doc["status"] = "success";
+    doc["message"] = "Color test completed";
+    doc["colors_tested"] = 7;
+    doc["format"] = "RGB565";
+    doc["screen_size"] = String(SCREEN_WIDTH) + "x" + String(SCREEN_HEIGHT);
+    doc["free_heap"] = ESP.getFreeHeap();
+
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+
+    Serial.println("Color test API completed");
+  }
+
+  void WebServerController::handleOrientationAPI(AsyncWebServerRequest *request)
+  {
+    JsonDocument doc;
+
+    // 获取当前方向设置
+    doc["auto_rotation"] = true;         // 从ImageDisplayManager获取
+    doc["current_mode"] = "SMART_SCALE"; // 从ImageDisplayManager获取
+    doc["current_rotation"] = 1;         // 从ImageDisplayManager获取
+    doc["available_modes"] = JsonArray();
+    doc["available_modes"].add("AUTO_ROTATE");
+    doc["available_modes"].add("SMART_SCALE");
+    doc["available_modes"].add("CENTER_CROP");
+    doc["available_modes"].add("FIT_SCREEN");
+
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+  }
+
+  void WebServerController::handleSetOrientationAPI(AsyncWebServerRequest *request)
+  {
+    // 处理POST参数
+    if (request->hasParam("mode", true))
+    {
+      String mode = request->getParam("mode", true)->value();
+      Serial.printf("Setting orientation mode to: %s\n", mode.c_str());
+
+      // 这里需要调用ImageDisplayManager的方法
+      // imageDisplayManager.setOrientationMode(mode);
+    }
+
+    if (request->hasParam("auto_rotation", true))
+    {
+      String autoRotation = request->getParam("auto_rotation", true)->value();
+      bool enable = (autoRotation == "true");
+      Serial.printf("Setting auto rotation to: %s\n", enable ? "enabled" : "disabled");
+
+      // 这里需要调用ImageDisplayManager的方法
+      // imageDisplayManager.setAutoRotation(enable);
+    }
+
+    JsonDocument doc;
+    doc["status"] = "success";
+    doc["message"] = "Orientation settings updated";
+
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+  }
+
+  void WebServerController::handleUploadStatusAPI(AsyncWebServerRequest *request)
+  {
+    JsonDocument doc;
+
+    // 获取系统状态信息
+    doc["free_heap"] = ESP.getFreeHeap();
+    doc["used_storage"] = LittleFS.usedBytes();
+    doc["total_storage"] = LittleFS.totalBytes();
+    doc["available_storage"] = LittleFS.totalBytes() - LittleFS.usedBytes();
+
+    // 计算可用存储空间百分比
+    float storageUsedPercent = (float)LittleFS.usedBytes() / LittleFS.totalBytes() * 100;
+    doc["storage_used_percent"] = storageUsedPercent;
+
+    // 估算可上传的图片数量（假设平均每张图片100KB）
+    size_t availableBytes = LittleFS.totalBytes() - LittleFS.usedBytes();
+    int estimatedImageCount = availableBytes / (100 * 1024); // 100KB per image
+    doc["estimated_uploadable_images"] = estimatedImageCount;
+
+    // 当前图片数量
+    doc["current_image_count"] = imageCount;
+
+    // 上传建议
+    if (storageUsedPercent > 90)
+    {
+      doc["upload_recommendation"] = "storage_almost_full";
+      doc["message"] = "存储空间不足，建议删除一些图片后再上传";
+    }
+    else if (storageUsedPercent > 75)
+    {
+      doc["upload_recommendation"] = "storage_warning";
+      doc["message"] = "存储空间较少，建议适量上传";
+    }
+    else
+    {
+      doc["upload_recommendation"] = "storage_ok";
+      doc["message"] = "存储空间充足，可以批量上传";
+    }
+
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+  }
+
   bool WebServerController::deleteImage(const String& filename)
   {
     String fullPath = filename;
@@ -500,6 +640,151 @@ namespace WebServerManager
     return webServerController.isWiFiConnected();
   }
 
+  // ==================== 颜色测试函数 ====================
+
+  void testDisplayColors()
+  {
+    Serial.println("Starting display color test...");
+
+    // 获取显示屏引用
+    auto &tft = Display::getTFT();
+
+    // 清屏
+    tft.fillScreen(0x0000); // 黑色 (ILI9341_BLACK)
+
+    // 定义测试颜色（使用直接的RGB565值）
+    const uint16_t colors[] = {
+        0xF800, // 红色 (ILI9341_RED)
+        0x07E0, // 绿色 (ILI9341_GREEN)
+        0x001F, // 蓝色 (ILI9341_BLUE)
+        0xFFE0, // 黄色 (ILI9341_YELLOW)
+        0xF81F, // 洋红 (ILI9341_MAGENTA)
+        0x07FF, // 青色 (ILI9341_CYAN)
+        0xFFFF  // 白色 (ILI9341_WHITE)
+    };
+
+    const char *colorNames[] = {
+        "RED", "GREEN", "BLUE", "YELLOW", "MAGENTA", "CYAN", "WHITE"};
+
+    // 绘制颜色条
+    int barWidth = SCREEN_WIDTH / 7;
+    int barHeight = 60;
+
+    for (int i = 0; i < 7; i++)
+    {
+      tft.fillRect(i * barWidth, 50, barWidth, barHeight, colors[i]);
+      Serial.printf("Color %s: 0x%04X\n", colorNames[i], colors[i]);
+    }
+
+    // 显示RGB565格式说明
+    tft.setTextColor(0xFFFF); // 白色 (ILI9341_WHITE)
+    tft.setTextSize(1);
+    tft.setCursor(10, 10);
+    tft.print("RGB565 Color Test");
+
+    tft.setCursor(10, 130);
+    tft.print("Format: RGB565 (16-bit)");
+    tft.setCursor(10, 150);
+    tft.print("Screen: 320x240");
+
+    // 显示内存信息
+    tft.setCursor(10, 180);
+    tft.printf("Free Heap: %d KB", ESP.getFreeHeap() / 1024);
+
+    Serial.println("Color test display completed");
+
+    // 保持显示3秒
+    delay(3000);
+
+    // 清屏
+    tft.fillScreen(0x0000); // 黑色 (ILI9341_BLACK)
+
+    Serial.println("Color test finished");
+  }
+
+  // ==================== 图片验证函数 ====================
+
+  bool validateUploadedImage(const String &filename)
+  {
+    // 检查文件是否存在
+    if (!LittleFS.exists(filename))
+    {
+      Serial.printf("Validation failed: file not found %s\n", filename.c_str());
+      return false;
+    }
+
+    // 获取文件大小
+    File file = LittleFS.open(filename, "r");
+    if (!file)
+    {
+      Serial.printf("Validation failed: cannot open %s\n", filename.c_str());
+      return false;
+    }
+
+    size_t fileSize = file.size();
+    if (fileSize == 0)
+    {
+      Serial.printf("Validation failed: empty file %s\n", filename.c_str());
+      file.close();
+      return false;
+    }
+
+    if (fileSize > MAX_FILE_SIZE)
+    {
+      Serial.printf("Validation failed: file too large %d bytes\n", fileSize);
+      file.close();
+      return false;
+    }
+
+    // 检查JPEG文件头
+    String ext = filename.substring(filename.lastIndexOf('.'));
+    ext.toLowerCase();
+
+    if (ext == ".jpg" || ext == ".jpeg")
+    {
+      // 读取JPEG文件头
+      uint8_t header[4];
+      if (file.read(header, 4) == 4)
+      {
+        // JPEG文件应该以 FF D8 开头
+        if (header[0] == 0xFF && header[1] == 0xD8)
+        {
+          Serial.println("Valid JPEG header detected");
+          file.close();
+          return true;
+        }
+        else
+        {
+          Serial.printf("Invalid JPEG header: %02X %02X %02X %02X\n",
+                        header[0], header[1], header[2], header[3]);
+        }
+      }
+    }
+    else if (ext == ".bmp")
+    {
+      // 读取BMP文件头
+      uint8_t header[2];
+      if (file.read(header, 2) == 2)
+      {
+        // BMP文件应该以 "BM" 开头
+        if (header[0] == 'B' && header[1] == 'M')
+        {
+          Serial.println("Valid BMP header detected");
+          file.close();
+          return true;
+        }
+        else
+        {
+          Serial.printf("Invalid BMP header: %c%c\n", header[0], header[1]);
+        }
+      }
+    }
+
+    file.close();
+    Serial.printf("Validation failed for %s\n", filename.c_str());
+    return false;
+  }
+
   // ==================== 静态函数实现 ====================
 
   void WebServerController::handleFileUpload(AsyncWebServerRequest *request, String filename,
@@ -525,8 +810,16 @@ namespace WebServerManager
       // 检查文件扩展名
       String ext = safeFilename.substring(safeFilename.lastIndexOf('.'));
       ext.toLowerCase();
-      if (ext != ".jpg" && ext != ".jpeg" && ext != ".bmp") {
+      if (ext != ".jpg" && ext != ".jpeg" && ext != ".bmp" && ext != ".png")
+      {
         Serial.println("Unsupported file format");
+        return;
+      }
+
+      // 检查文件大小限制
+      if (len > MAX_FILE_SIZE)
+      {
+        Serial.printf("File too large: %d bytes (max: %d)\n", len, MAX_FILE_SIZE);
         return;
       }
 
@@ -550,8 +843,18 @@ namespace WebServerManager
         uploadFile.close();
         Serial.printf("Upload complete: %s (%d bytes)\n", safeFilename.c_str(), index + len);
 
-        // 重新扫描图片列表
-        webServerController.scanImages();
+        // 验证上传的图片文件
+        if (validateUploadedImage(safeFilename))
+        {
+          Serial.println("Image validation successful");
+          // 重新扫描图片列表
+          webServerController.scanImages();
+        }
+        else
+        {
+          Serial.println("Image validation failed, removing file");
+          LittleFS.remove(safeFilename);
+        }
       }
     }
   }

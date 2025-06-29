@@ -35,6 +35,25 @@ namespace ImageDisplay
     uint32_t colorsImportant;
   } __attribute__((packed));
 
+  // ==================== 方向自适应枚举 ====================
+
+  // 图片方向枚举
+  enum class ImageOrientation
+  {
+    LANDSCAPE, // 横屏 (宽 > 高)
+    PORTRAIT,  // 竖屏 (高 > 宽)
+    SQUARE     // 正方形 (宽 ≈ 高)
+  };
+
+  // 显示模式枚举
+  enum class DisplayMode
+  {
+    AUTO_ROTATE, // 自动旋转屏幕
+    SMART_SCALE, // 智能缩放
+    CENTER_CROP, // 居中裁剪
+    FIT_SCREEN   // 适配屏幕
+  };
+
   // ==================== 图片显示管理类 ====================
 
   class ImageDisplayManager
@@ -43,6 +62,8 @@ namespace ImageDisplay
     // 初始化和设置
     bool begin();
     void setDisplayMode(bool centerImage = true, bool scaleToFit = false);
+    void setOrientationMode(DisplayMode mode);
+    void setAutoRotation(bool enable);
 
     // 图片格式检测
     ImageFormat detectImageFormat(const char* filename);
@@ -73,6 +94,11 @@ namespace ImageDisplay
     bool scaleToFit;
     bool cacheEnabled;
 
+    // 方向自适应配置
+    DisplayMode orientationMode;
+    bool autoRotationEnabled;
+    uint8_t currentRotation;
+
     // JPEG解码相关
     bool initJPEGDecoder();
 
@@ -90,6 +116,15 @@ namespace ImageDisplay
                                int16_t& x, int16_t& y);
     void calculateScaledSize(uint16_t imgWidth, uint16_t imgHeight,
                             uint16_t& newWidth, uint16_t& newHeight);
+
+    // 方向自适应功能
+    ImageOrientation detectImageOrientation(uint16_t width, uint16_t height);
+    bool shouldRotateScreen(ImageOrientation imgOrientation);
+    void applyOptimalRotation(uint16_t imgWidth, uint16_t imgHeight);
+    void calculateOptimalScale(uint16_t imgWidth, uint16_t imgHeight,
+                               uint8_t &scale, uint16_t &finalWidth, uint16_t &finalHeight);
+    void calculateSmartPosition(uint16_t imgWidth, uint16_t imgHeight,
+                                int16_t &x, int16_t &y, DisplayMode mode);
 
     // 颜色转换
     uint16_t rgb888ToRgb565(uint8_t r, uint8_t g, uint8_t b);

@@ -79,6 +79,10 @@ namespace WebServerManager
     void handleSetImageAPI(AsyncWebServerRequest *request);
     void handleDeleteImageAPI(AsyncWebServerRequest *request);
     void handleSystemStatusAPI(AsyncWebServerRequest *request);
+    void handleColorTestAPI(AsyncWebServerRequest *request);
+    void handleOrientationAPI(AsyncWebServerRequest *request);
+    void handleSetOrientationAPI(AsyncWebServerRequest *request);
+    void handleUploadStatusAPI(AsyncWebServerRequest *request);
 
     // 文件上传处理
     static void handleFileUpload(AsyncWebServerRequest *request, String filename,
@@ -115,6 +119,9 @@ namespace WebServerManager
   // 状态查询
   String getImageListJson();
   bool isWiFiConnected();
+
+  // 颜色测试
+  void testDisplayColors();
 
   // 向后兼容的全局变量访问
   extern int currentImageIndex;

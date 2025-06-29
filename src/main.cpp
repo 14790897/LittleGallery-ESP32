@@ -64,7 +64,7 @@ void updateDisplayedImage()
 
   if (currentImage != "No image" && !currentImage.isEmpty()) {
     if (ImageDisplay::displayImage(currentImage.c_str())) {
-      ImageDisplay::showImageInfo(currentImage.c_str(), currentIndex, totalImages);
+      // ImageDisplay::showImageInfo(currentImage.c_str(), currentIndex, totalImages);
     } else {
       ImageDisplay::showErrorMessage("Failed to display: " + currentImage);
     }

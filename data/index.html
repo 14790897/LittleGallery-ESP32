@@ -29,10 +29,29 @@
                     <label for="fileInput" class="upload-label">
                         <span class="upload-icon">📁</span>
                         <span>选择图片文件或拖拽到此处</span>
-                        <span class="upload-hint">支持 JPG, JPEG, BMP 格式 - 选择后自动上传</span>
+                        <span class="upload-hint">支持 JPG, JPEG, BMP 格式 - 支持批量上传</span>
                         <span class="upload-hint">📝 长文件名将自动缩短以符合系统要求</span>
+                        <span class="upload-hint">🔄 选择多个文件可批量上传</span>
                     </label>
                 </form>
+
+                <!-- 批量上传进度显示 -->
+                <div id="batchUploadProgress" class="batch-progress" style="display: none;">
+                    <div class="progress-header">
+                        <h4>📤 批量上传进度</h4>
+                        <button onclick="cancelBatchUpload()" class="cancel-btn">❌ 取消</button>
+                    </div>
+                    <div class="overall-progress">
+                        <div class="progress-info">
+                            <span id="uploadProgressText">准备上传...</span>
+                            <span id="uploadProgressCount">0/0</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="overallProgressBar" class="progress-fill"></div>
+                        </div>
+                    </div>
+                    <div id="fileProgressList" class="file-progress-list"></div>
+                </div>
             </div>
             <div class="upload-tips">
                 <ul>
@@ -51,6 +70,10 @@
             <h3>🎮 图片控制</h3>
             <div class="control-buttons">
                 <button onclick="previousImage()" class="control-btn">⬅️ 上一张</button>
+                <button onclick="nextImage()" class="control-btn">下一张 ➡️</button>
+                <button id="slideshowBtn" onclick="toggleSlideshow()" class="control-btn">▶️ 幻灯片</button>
+            </div>
+        </div>
         <div class="image-list-section">
             <h3>📁 图片列表</h3>
             <div class="list-controls">
@@ -81,6 +104,64 @@
                     <span class="status-label">运行时间:</span>
                     <span class="status-value" id="uptime">计算中...</span>
                 </div>
+            </div>
+
+            <div class="debug-controls">
+                <h4>🔧 调试工具</h4>
+                <button onclick="testDisplayColors()" class="debug-btn">🎨 测试显示颜色</button>
+                <button onclick="window.open('/debug.html', '_blank')" class="debug-btn">🐛 调试页面</button>
+            </div>
+
+            <div class="orientation-controls">
+                <h4>🔄 显示方向设置</h4>
+                <div class="control-group">
+                    <label for="orientationMode">显示模式:</label>
+                    <select id="orientationMode" onchange="updateOrientationMode()">
+                        <option value="SMART_SCALE">智能缩放</option>
+                        <option value="AUTO_ROTATE">自动旋转</option>
+                        <option value="CENTER_CROP">居中裁剪</option>
+                        <option value="FIT_SCREEN">适配屏幕</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="autoRotation" onchange="updateAutoRotation()" checked>
+                        启用自动旋转
+                    </label>
+                </div>
+                <button onclick="testOrientation()" class="debug-btn">🔄 测试方向</button>
+            </div>
+
+            <div class="image-processing-controls">
+                <h4>🖼️ 图片预处理设置</h4>
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="enablePreprocessing" onchange="updatePreprocessingSettings()" checked>
+                        启用前端图片预处理
+                    </label>
+                </div>
+                <div class="control-group">
+                    <label for="targetResolution">目标分辨率:</label>
+                    <select id="targetResolution" onchange="updatePreprocessingSettings()">
+                        <option value="320x240">320x240 (横屏)</option>
+                        <option value="240x320">240x320 (竖屏)</option>
+                        <option value="auto">自动选择最佳</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="imageQuality">图片质量:</label>
+                    <input type="range" id="imageQuality" min="0.5" max="1.0" step="0.1" value="0.8" onchange="updatePreprocessingSettings()">
+                    <span id="qualityValue">80%</span>
+                </div>
+                <div class="control-group">
+                    <label for="resizeMode">缩放模式:</label>
+                    <select id="resizeMode" onchange="updatePreprocessingSettings()">
+                        <option value="contain">完整显示</option>
+                        <option value="cover">填满屏幕</option>
+                        <option value="stretch">拉伸适配</option>
+                    </select>
+                </div>
+                <button onclick="testImageProcessing()" class="debug-btn">🖼️ 测试预处理</button>
             </div>
         </div>
     </div>

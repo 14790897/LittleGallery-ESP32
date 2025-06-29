@@ -47,6 +47,7 @@ namespace Display
     void showImageInfo(const char* filename, int index, int total);
     void showNoImageMessage();
     void showLoadingMessage();
+    void drawFileName(const char* filename);
 
     // 获取显示屏对象（用于高级操作）
     Adafruit_ILI9341& getTFT() { return tft; }
@@ -62,6 +63,7 @@ namespace Display
     // 私有辅助函数
     void initializePins();
     void setupDisplay();
+    void testColorDisplay();
   };
 
   // 全局显示管理器实例
