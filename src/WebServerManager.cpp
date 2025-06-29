@@ -17,7 +17,16 @@ namespace WebServerManager
   bool WebServerController::begin()
   {
     Serial.println("Initializing Web Server Controller...");
-    
+
+    // 初始化成员变量
+    serverRunning = false;
+    fileSystemReady = false;
+    imageCount = 0;
+    currentImageIndex = 0;
+    slideshowActive = false;
+    slideshowInterval = 3000; // 默认3秒间隔
+    lastSlideshowChange = 0;
+
     // 初始化文件系统
     if (!initFileSystem()) {
       Serial.println("Failed to initialize file system");
@@ -340,8 +349,22 @@ namespace WebServerManager
     server->on("/api/upload-status", HTTP_GET, [this](AsyncWebServerRequest *request)
                { handleUploadStatusAPI(request); });
 
+    // 幻灯片控制API
+    server->on("/api/slideshow", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleSlideshowAPI(request); });
+    server->on("/api/slideshow", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleSlideshowStatusAPI(request); });
+
     // 添加OPTIONS请求处理 (CORS预检)
     server->on("/api/orientation", HTTP_OPTIONS, [](AsyncWebServerRequest *request)
+               {
+                 AsyncWebServerResponse *response = request->beginResponse(200);
+                 response->addHeader("Access-Control-Allow-Origin", "*");
+                 response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                 response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+                 request->send(response); });
+
+    server->on("/api/slideshow", HTTP_OPTIONS, [](AsyncWebServerRequest *request)
                {
                  AsyncWebServerResponse *response = request->beginResponse(200);
                  response->addHeader("Access-Control-Allow-Origin", "*");
@@ -479,6 +502,10 @@ namespace WebServerManager
     doc["imageCount"] = imageCount;
     doc["currentImage"] = getCurrentImageName();
     doc["currentIndex"] = currentImageIndex;
+
+    // 幻灯片状态
+    doc["slideshow_active"] = slideshowActive;
+    doc["slideshow_interval"] = slideshowInterval / 1000; // 转换为秒
 
     String result;
     serializeJson(doc, result);
@@ -928,5 +955,139 @@ namespace WebServerManager
     }
   }
 
+  // ==================== 幻灯片控制函数实现 ====================
 
+  bool WebServerController::toggleSlideshow()
+  {
+    if (slideshowActive)
+    {
+      return stopSlideshow();
+    }
+    else
+    {
+      return startSlideshow();
+    }
+  }
+
+  bool WebServerController::startSlideshow()
+  {
+    if (imageCount <= 1)
+    {
+      Serial.println("Cannot start slideshow: need at least 2 images");
+      return false;
+    }
+
+    slideshowActive = true;
+    lastSlideshowChange = millis();
+    Serial.printf("Slideshow started with %lu ms interval\n", slideshowInterval);
+    return true;
+  }
+
+  bool WebServerController::stopSlideshow()
+  {
+    slideshowActive = false;
+    Serial.println("Slideshow stopped");
+    return true;
+  }
+
+  void WebServerController::setSlideshowInterval(unsigned long interval)
+  {
+    // 限制间隔在1秒到10分钟之间
+    if (interval < 1000)
+      interval = 1000;
+    if (interval > 600000)
+      interval = 600000;
+
+    slideshowInterval = interval;
+    Serial.printf("Slideshow interval set to %lu ms\n", slideshowInterval);
+  }
+
+  void WebServerController::updateSlideshow()
+  {
+    if (!slideshowActive || imageCount <= 1)
+    {
+      return;
+    }
+
+    unsigned long currentTime = millis();
+    if (currentTime - lastSlideshowChange >= slideshowInterval)
+    {
+      nextImage();
+      lastSlideshowChange = currentTime;
+      Serial.printf("Slideshow auto-switched to: %s\n", getCurrentImageName().c_str());
+    }
+  }
+
+  void WebServerController::handleSlideshowAPI(AsyncWebServerRequest *request)
+  {
+    Serial.printf("Processing slideshow API request: %s %s\n",
+                  request->methodToString(), request->url().c_str());
+
+    JsonDocument doc;
+
+    if (request->hasParam("action", true))
+    {
+      String action = request->getParam("action", true)->value();
+
+      if (action == "toggle")
+      {
+        bool success = toggleSlideshow();
+        doc["status"] = success ? "ok" : "error";
+        doc["slideshow_active"] = slideshowActive;
+        doc["interval"] = slideshowInterval / 1000; // 转换为秒
+        if (!success)
+        {
+          doc["message"] = "Need at least 2 images for slideshow";
+        }
+      }
+      else if (action == "set_interval" && request->hasParam("interval", true))
+      {
+        unsigned long interval = request->getParam("interval", true)->value().toInt() * 1000; // 转换为毫秒
+        setSlideshowInterval(interval);
+        doc["status"] = "ok";
+        doc["interval"] = slideshowInterval / 1000;
+      }
+      else
+      {
+        doc["status"] = "error";
+        doc["message"] = "Invalid action or missing parameters";
+      }
+    }
+    else
+    {
+      doc["status"] = "error";
+      doc["message"] = "Missing action parameter";
+    }
+
+    String response;
+    serializeJson(doc, response);
+
+    AsyncWebServerResponse *apiResponse = request->beginResponse(200, "application/json", response);
+    apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(apiResponse);
+
+    Serial.println("Slideshow API response sent");
+  }
+
+  void WebServerController::handleSlideshowStatusAPI(AsyncWebServerRequest *request)
+  {
+    Serial.printf("Processing slideshow status API request: %s %s\n",
+                  request->methodToString(), request->url().c_str());
+
+    JsonDocument doc;
+    doc["slideshow_active"] = slideshowActive;
+    doc["interval"] = slideshowInterval / 1000; // 转换为秒
+    doc["image_count"] = imageCount;
+    doc["current_image"] = getCurrentImageName();
+    doc["status"] = "ok";
+
+    String response;
+    serializeJson(doc, response);
+
+    AsyncWebServerResponse *apiResponse = request->beginResponse(200, "application/json", response);
+    apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(apiResponse);
+
+    Serial.println("Slideshow status API response sent");
+  }
 }

@@ -78,6 +78,20 @@
                 <button onclick="nextImage()" class="control-btn">下一张 ➡️</button>
                 <button id="slideshowBtn" onclick="toggleSlideshow()" class="control-btn">▶️ 幻灯片</button>
             </div>
+            <div class="control-group" style="margin-top: 10px;">
+                <label for="slideshowInterval">幻灯片间隔 (秒):</label>
+                <select id="slideshowInterval" onchange="setSlideshowInterval()">
+                    <option value="2">2秒</option>
+                    <option value="3" selected>3秒</option>
+                    <option value="5">5秒</option>
+                    <option value="10">10秒</option>
+                    <option value="30">30秒</option>
+                    <option value="60">1分钟</option>
+                </select>
+                <small style="color: #666; display: block; margin-top: 4px;">
+                    ⚡ 幻灯片在ESP32上自动运行，无需保持浏览器打开
+                </small>
+            </div>
         </div>
         <div class="image-list-section">
             <h3>📁 图片列表</h3>

@@ -88,6 +88,9 @@ void loop()
 {
   unsigned long now = millis();
 
+  // 更新幻灯片（如果启用）
+  WebServerManager::webServerController.updateSlideshow();
+
   // 定期检查是否需要更新显示的图片
   if (now - lastImageUpdate >= IMAGE_UPDATE_INTERVAL) {
     if (hasImageChanged()) {

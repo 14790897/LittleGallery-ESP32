@@ -743,41 +743,62 @@ class LittleGallery {
     });
   }
 
-  toggleSlideshow() {
+  async toggleSlideshow() {
     const btn = document.getElementById("slideshowBtn");
 
-    if (this.slideshowActive) {
-      this.stopSlideshow();
-      btn.textContent = "▶️ 幻灯片";
-      btn.style.background = "#007bff";
-    } else {
-      this.startSlideshow();
-      btn.textContent = "⏸️ 停止";
-      btn.style.background = "#dc3545";
+    try {
+      // 发送切换幻灯片请求到ESP32
+      const response = await fetch("/api/slideshow", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `action=toggle`,
+      });
+
+      const data = await response.json();
+
+      if (data.status === "ok") {
+        // 更新前端状态显示
+        this.slideshowActive = data.slideshow_active;
+
+        if (this.slideshowActive) {
+          btn.textContent = "⏸️ 停止";
+          btn.style.background = "#dc3545";
+          this.showStatus(`幻灯片已启动 (${data.interval}秒间隔)`, "success");
+        } else {
+          btn.textContent = "▶️ 幻灯片";
+          btn.style.background = "#007bff";
+          this.showStatus("幻灯片已停止", "success");
+        }
+      } else {
+        this.showStatus(data.message || "幻灯片切换失败", "error");
+      }
+    } catch (error) {
+      console.error("Toggle slideshow failed:", error);
+      this.showStatus("幻灯片控制请求失败: " + error.message, "error");
     }
   }
 
-  startSlideshow() {
-    if (this.currentImages.length === 0) {
-      this.showStatus("没有图片可以播放", "warning");
-      return;
+  // 幻灯片现在由ESP32后端控制，移除前端定时器逻辑
+
+  async setSlideshowInterval(interval) {
+    try {
+      const response = await fetch("/api/slideshow", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `action=set_interval&interval=${interval}`,
+      });
+
+      const data = await response.json();
+
+      if (data.status === "ok") {
+        this.showStatus(`幻灯片间隔已设置为 ${interval} 秒`, "success");
+      } else {
+        this.showStatus(data.message || "设置幻灯片间隔失败", "error");
+      }
+    } catch (error) {
+      console.error("Set slideshow interval failed:", error);
+      this.showStatus("设置幻灯片间隔请求失败: " + error.message, "error");
     }
-
-    this.slideshowActive = true;
-    this.slideshowInterval = setInterval(() => {
-      this.nextImage();
-    }, 3000); // 3秒切换一次
-
-    this.showStatus("幻灯片已开始", "success");
-  }
-
-  stopSlideshow() {
-    this.slideshowActive = false;
-    if (this.slideshowInterval) {
-      clearInterval(this.slideshowInterval);
-      this.slideshowInterval = null;
-    }
-    this.showStatus("幻灯片已停止", "success");
   }
 
   async updateSystemStatus() {
@@ -793,6 +814,21 @@ class LittleGallery {
         data.storage || "计算中...";
       document.getElementById("uptime").textContent =
         data.uptime || "计算中...";
+
+      // 更新幻灯片状态显示
+      if (data.slideshow_active !== undefined) {
+        this.slideshowActive = data.slideshow_active;
+        const btn = document.getElementById("slideshowBtn");
+        if (btn) {
+          if (this.slideshowActive) {
+            btn.textContent = "⏸️ 停止";
+            btn.style.background = "#dc3545";
+          } else {
+            btn.textContent = "▶️ 幻灯片";
+            btn.style.background = "#007bff";
+          }
+        }
+      }
     } catch (error) {
       console.error("获取系统状态失败:", error);
     }
@@ -1152,8 +1188,14 @@ class LittleGallery {
         } else {
           // 竖屏图片：高度大于等于宽度
           // 检查是否需要旋转以更好地利用屏幕空间
-          const horizontalFit = Math.min(320 / originalWidth, 240 / originalHeight);
-          const verticalFit = Math.min(240 / originalWidth, 320 / originalHeight);
+          const horizontalFit = Math.min(
+            320 / originalWidth,
+            240 / originalHeight
+          );
+          const verticalFit = Math.min(
+            240 / originalWidth,
+            320 / originalHeight
+          );
 
           if (horizontalFit > verticalFit) {
             // 旋转后能更好地利用屏幕空间
@@ -1458,6 +1500,12 @@ function refreshImageList() {
 
 function toggleSlideshow() {
   gallery.toggleSlideshow();
+}
+
+function setSlideshowInterval() {
+  const select = document.getElementById("slideshowInterval");
+  const interval = parseInt(select.value);
+  gallery.setSlideshowInterval(interval);
 }
 
 function selectAllImages() {

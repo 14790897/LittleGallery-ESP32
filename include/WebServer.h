@@ -53,6 +53,15 @@ namespace WebServerManager
     bool setCurrentImage(int index);
     bool deleteImage(const String& filename);
 
+    // 幻灯片控制
+    bool toggleSlideshow();
+    bool startSlideshow();
+    bool stopSlideshow();
+    void setSlideshowInterval(unsigned long interval);
+    bool isSlideshowActive() const { return slideshowActive; }
+    unsigned long getSlideshowInterval() const { return slideshowInterval; }
+    void updateSlideshow(); // 在主循环中调用
+
     // API响应
     String getImageListJson() const;
     String getSystemStatusJson() const;
@@ -66,6 +75,11 @@ namespace WebServerManager
     String imageList[MAX_IMAGES];
     int imageCount;
     int currentImageIndex;
+
+    // 幻灯片控制
+    bool slideshowActive;
+    unsigned long slideshowInterval;
+    unsigned long lastSlideshowChange;
 
     // 路由设置
     void setupRoutes();
@@ -83,6 +97,8 @@ namespace WebServerManager
     void handleOrientationAPI(AsyncWebServerRequest *request);
     void handleSetOrientationAPI(AsyncWebServerRequest *request);
     void handleUploadStatusAPI(AsyncWebServerRequest *request);
+    void handleSlideshowAPI(AsyncWebServerRequest *request);
+    void handleSlideshowStatusAPI(AsyncWebServerRequest *request);
 
     // 文件上传处理
     static void handleFileUpload(AsyncWebServerRequest *request, String filename,
