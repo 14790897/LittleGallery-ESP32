@@ -671,3 +671,59 @@ header h1 {
     transition: all 0.3s ease;
     border-radius: 3px;
 }
+
+/* 图片预处理控制样式 */
+.image-processing-controls {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f0f8ff;
+    border-radius: var(--border-radius);
+    border: 1px solid #b3d9ff;
+}
+
+.image-processing-controls h4 {
+    margin: 0 0 15px 0;
+    color: var(--text-color);
+    font-size: 1rem;
+}
+
+.image-processing-controls .control-group {
+    margin-bottom: 15px;
+}
+
+.image-processing-controls .control-group:last-child {
+    margin-bottom: 0;
+}
+
+.image-processing-controls input[type="range"] {
+    width: 70%;
+    margin-right: 10px;
+}
+
+.image-processing-controls #qualityValue {
+    font-weight: 500;
+    color: var(--primary-color);
+    min-width: 40px;
+    display: inline-block;
+}
+
+/* 预处理状态指示 */
+.preprocessing-indicator {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e3f2fd;
+    color: #1976d2;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.preprocessing-indicator.enabled {
+    background: #e8f5e8;
+    color: #2e7d32;
+}
+
+.preprocessing-indicator.disabled {
+    background: #fafafa;
+    color: #757575;
+}

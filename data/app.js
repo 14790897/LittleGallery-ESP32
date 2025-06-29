@@ -32,6 +32,9 @@ class LittleGallery {
     this.refreshImageList();
     this.updateSystemStatus();
 
+    // 加载预处理设置
+    this.loadPreprocessingSettings();
+
     // 定期刷新
     setInterval(() => this.refreshImageList(), 5000);
     setInterval(() => this.updateSystemStatus(), 30000);
@@ -133,27 +136,36 @@ class LittleGallery {
       return;
     }
 
-    // 生成安全的文件名
-    const safeFileName = this.generateSafeFileName(originalName);
-    console.log("Safe filename:", safeFileName);
-
     try {
+      // 图片预处理
+      let processedFile = file;
+      if (this.preprocessingSettings.enabled) {
+        console.log("Preprocessing image:", originalName);
+        this.showStatus("正在预处理图片...", "info");
+        processedFile = await this.preprocessImage(file);
+        console.log("Image preprocessed, new size:", processedFile.size);
+      }
+
+      // 生成安全的文件名
+      const safeFileName = this.generateSafeFileName(originalName);
+      console.log("Safe filename:", safeFileName);
+
       console.log("Starting upload for:", safeFileName);
-      await this.uploadFileWithName(file, safeFileName);
+      await this.uploadFileWithName(processedFile, safeFileName);
       console.log("Upload successful for:", safeFileName);
 
       if (safeFileName !== originalName) {
         this.showStatus(
-          `文件 "${originalName}" 已重命名为 "${safeFileName}" 并上传成功`,
+          `文件 "${originalName}" 已预处理并重命名为 "${safeFileName}" 上传成功`,
           "success"
         );
       } else {
-        this.showStatus(`文件 ${originalName} 上传成功`, "success");
+        this.showStatus(`文件 ${originalName} 预处理并上传成功`, "success");
       }
     } catch (error) {
       console.error("Upload failed for:", originalName, error);
       this.showStatus(
-        `文件 ${originalName} 上传失败: ${error.message}`,
+        `文件 ${originalName} 处理失败: ${error.message}`,
         "error"
       );
     }
@@ -222,13 +234,23 @@ class LittleGallery {
         continue;
       }
 
-      // 生成安全的文件名
-      const safeFileName = this.generateSafeFileName(originalName);
-      console.log("Safe filename:", safeFileName);
-
       try {
+        // 图片预处理
+        let processedFile = file;
+        if (this.preprocessingSettings.enabled) {
+          console.log("Preprocessing image:", originalName);
+          this.updateFileProgress(fileId, "uploading", "预处理中...");
+          processedFile = await this.preprocessImage(file);
+          console.log("Image preprocessed, new size:", processedFile.size);
+        }
+
+        // 生成安全的文件名
+        const safeFileName = this.generateSafeFileName(originalName);
+        console.log("Safe filename:", safeFileName);
+
+        this.updateFileProgress(fileId, "uploading", "上传中...");
         console.log("Starting upload for:", safeFileName);
-        await this.uploadFileWithName(file, safeFileName);
+        await this.uploadFileWithName(processedFile, safeFileName);
         console.log("Upload successful for:", safeFileName);
 
         this.updateFileProgress(fileId, "success", "上传成功");
@@ -883,6 +905,248 @@ class LittleGallery {
       throw error;
     }
   }
+
+  // ==================== 图片预处理功能 ====================
+
+  async preprocessImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      img.onload = () => {
+        try {
+          // 获取目标尺寸
+          const targetDimensions = this.calculateTargetDimensions(
+            img.width,
+            img.height
+          );
+
+          console.log(
+            `Original: ${img.width}x${img.height}, Target: ${targetDimensions.width}x${targetDimensions.height}`
+          );
+
+          // 设置canvas尺寸
+          canvas.width = targetDimensions.width;
+          canvas.height = targetDimensions.height;
+
+          // 根据缩放模式绘制图片
+          this.drawImageWithMode(ctx, img, targetDimensions);
+
+          // 转换为Blob
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                // 创建新的File对象
+                const processedFile = new File([blob], file.name, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                });
+
+                console.log(
+                  `Image processed: ${file.size} -> ${processedFile.size} bytes`
+                );
+                resolve(processedFile);
+              } else {
+                reject(new Error("图片处理失败"));
+              }
+            },
+            "image/jpeg",
+            this.preprocessingSettings.quality
+          );
+        } catch (error) {
+          reject(new Error("图片处理过程中出错: " + error.message));
+        }
+      };
+
+      img.onerror = () => {
+        reject(new Error("无法加载图片"));
+      };
+
+      // 加载图片
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  calculateTargetDimensions(originalWidth, originalHeight) {
+    let targetWidth, targetHeight;
+
+    // 根据设置确定目标分辨率
+    if (this.preprocessingSettings.targetResolution === "auto") {
+      // 自动选择最佳分辨率
+      const aspectRatio = originalWidth / originalHeight;
+      if (aspectRatio > 1.2) {
+        // 横屏图片
+        targetWidth = 320;
+        targetHeight = 240;
+      } else if (aspectRatio < 0.8) {
+        // 竖屏图片
+        targetWidth = 240;
+        targetHeight = 320;
+      } else {
+        // 正方形图片，选择横屏
+        targetWidth = 320;
+        targetHeight = 240;
+      }
+    } else {
+      // 使用指定分辨率
+      const [w, h] = this.preprocessingSettings.targetResolution
+        .split("x")
+        .map(Number);
+      targetWidth = w;
+      targetHeight = h;
+    }
+
+    return { width: targetWidth, height: targetHeight };
+  }
+
+  drawImageWithMode(ctx, img, targetDimensions) {
+    const { width: targetWidth, height: targetHeight } = targetDimensions;
+    const originalWidth = img.width;
+    const originalHeight = img.height;
+
+    // 清空canvas
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+    let drawX, drawY, drawWidth, drawHeight;
+
+    switch (this.preprocessingSettings.resizeMode) {
+      case "contain":
+        // 完整显示，保持比例，可能有黑边
+        const scaleContain = Math.min(
+          targetWidth / originalWidth,
+          targetHeight / originalHeight
+        );
+        drawWidth = originalWidth * scaleContain;
+        drawHeight = originalHeight * scaleContain;
+        drawX = (targetWidth - drawWidth) / 2;
+        drawY = (targetHeight - drawHeight) / 2;
+        break;
+
+      case "cover":
+        // 填满屏幕，保持比例，可能裁剪
+        const scaleCover = Math.max(
+          targetWidth / originalWidth,
+          targetHeight / originalHeight
+        );
+        drawWidth = originalWidth * scaleCover;
+        drawHeight = originalHeight * scaleCover;
+        drawX = (targetWidth - drawWidth) / 2;
+        drawY = (targetHeight - drawHeight) / 2;
+        break;
+
+      case "stretch":
+        // 拉伸适配，可能变形
+        drawX = 0;
+        drawY = 0;
+        drawWidth = targetWidth;
+        drawHeight = targetHeight;
+        break;
+
+      default:
+        // 默认使用contain模式
+        const scaleDefault = Math.min(
+          targetWidth / originalWidth,
+          targetHeight / originalHeight
+        );
+        drawWidth = originalWidth * scaleDefault;
+        drawHeight = originalHeight * scaleDefault;
+        drawX = (targetWidth - drawWidth) / 2;
+        drawY = (targetHeight - drawHeight) / 2;
+    }
+
+    // 绘制图片
+    ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+  }
+
+  updatePreprocessingSettings() {
+    const enabledCheckbox = document.getElementById("enablePreprocessing");
+    const resolutionSelect = document.getElementById("targetResolution");
+    const qualitySlider = document.getElementById("imageQuality");
+    const qualityValue = document.getElementById("qualityValue");
+    const resizeModeSelect = document.getElementById("resizeMode");
+
+    if (enabledCheckbox) {
+      this.preprocessingSettings.enabled = enabledCheckbox.checked;
+    }
+
+    if (resolutionSelect) {
+      this.preprocessingSettings.targetResolution = resolutionSelect.value;
+    }
+
+    if (qualitySlider) {
+      this.preprocessingSettings.quality = parseFloat(qualitySlider.value);
+      if (qualityValue) {
+        qualityValue.textContent =
+          Math.round(this.preprocessingSettings.quality * 100) + "%";
+      }
+    }
+
+    if (resizeModeSelect) {
+      this.preprocessingSettings.resizeMode = resizeModeSelect.value;
+    }
+
+    console.log("Preprocessing settings updated:", this.preprocessingSettings);
+
+    // 更新状态指示器
+    this.updatePreprocessingStatusIndicator();
+
+    // 保存设置到localStorage
+    localStorage.setItem(
+      "preprocessingSettings",
+      JSON.stringify(this.preprocessingSettings)
+    );
+  }
+
+  loadPreprocessingSettings() {
+    try {
+      const saved = localStorage.getItem("preprocessingSettings");
+      if (saved) {
+        this.preprocessingSettings = {
+          ...this.preprocessingSettings,
+          ...JSON.parse(saved),
+        };
+
+        // 更新UI
+        const enabledCheckbox = document.getElementById("enablePreprocessing");
+        const resolutionSelect = document.getElementById("targetResolution");
+        const qualitySlider = document.getElementById("imageQuality");
+        const qualityValue = document.getElementById("qualityValue");
+        const resizeModeSelect = document.getElementById("resizeMode");
+
+        if (enabledCheckbox)
+          enabledCheckbox.checked = this.preprocessingSettings.enabled;
+        if (resolutionSelect)
+          resolutionSelect.value = this.preprocessingSettings.targetResolution;
+        if (qualitySlider)
+          qualitySlider.value = this.preprocessingSettings.quality;
+        if (qualityValue)
+          qualityValue.textContent =
+            Math.round(this.preprocessingSettings.quality * 100) + "%";
+        if (resizeModeSelect)
+          resizeModeSelect.value = this.preprocessingSettings.resizeMode;
+
+        // 更新状态指示器
+        this.updatePreprocessingStatusIndicator();
+      }
+    } catch (error) {
+      console.warn("Failed to load preprocessing settings:", error);
+    }
+  }
+
+  updatePreprocessingStatusIndicator() {
+    const statusIndicator = document.getElementById("preprocessingStatus");
+    if (statusIndicator) {
+      if (this.preprocessingSettings.enabled) {
+        statusIndicator.textContent = "已启用";
+        statusIndicator.className = "preprocessing-indicator enabled";
+      } else {
+        statusIndicator.textContent = "已禁用";
+        statusIndicator.className = "preprocessing-indicator disabled";
+      }
+    }
+  }
 }
 
 // 全局实例
@@ -1021,4 +1285,42 @@ function cancelBatchUpload() {
   console.log("Cancelling batch upload...");
   gallery.batchUploadCancelled = true;
   gallery.showStatus("正在取消批量上传...", "warning");
+}
+
+// 图片预处理控制函数
+function updatePreprocessingSettings() {
+  gallery.updatePreprocessingSettings();
+}
+
+async function testImageProcessing() {
+  console.log("Testing image processing...");
+
+  if (gallery.currentImages.length > 0) {
+    gallery.showStatus("正在测试图片预处理功能...", "info");
+
+    // 创建一个测试用的文件输入
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".jpg,.jpeg,.bmp";
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        try {
+          gallery.showStatus("正在预处理测试图片...", "info");
+          const processedFile = await gallery.preprocessImage(file);
+          gallery.showStatus(
+            `预处理测试完成！原始: ${(file.size / 1024).toFixed(
+              1
+            )}KB → 处理后: ${(processedFile.size / 1024).toFixed(1)}KB`,
+            "success"
+          );
+        } catch (error) {
+          gallery.showStatus("预处理测试失败: " + error.message, "error");
+        }
+      }
+    };
+    input.click();
+  } else {
+    gallery.showStatus("请先选择一个测试图片", "warning");
+  }
 }

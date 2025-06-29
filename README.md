@@ -33,7 +33,7 @@
 
 ### 1. WiFi配置
 
-在 `src/WebServer.cpp` 文件中修改WiFi配置：
+在 `include/secrets.h` 文件中修改WiFi配置：
 
 ```cpp
 const char* ssid = "YourWiFiSSID";        // 修改为您的WiFi名称
@@ -188,3 +188,7 @@ LittleGallery-ESP32/
 ## 许可证
 
 本项目采用MIT许可证。
+
+## 演示视频
+
+- [B站演示视频（Little Gallery ESP32）](https://www.bilibili.com/video/BV1BzgZzMEYn/)
