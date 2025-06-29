@@ -111,18 +111,23 @@ class LittleGallery {
 
   async processFiles(files) {
     console.log("processFiles called with", files.length, "files");
-
-    if (files.length === 0) {
+    const fileArray = Array.from(files);
+    console.log(
+      "File details:",
+      fileArray.map((f) => f.name)
+    );
+    // 检查是否有文件被选择
+    if (fileArray.length === 0) {
       this.showStatus("没有选择文件", "warning");
       return;
     }
 
     // 如果是批量上传（多个文件），显示批量上传界面
-    if (files.length > 1) {
-      await this.processBatchUpload(files);
+    if (fileArray.length > 1) {
+      await this.processBatchUpload(fileArray);
     } else {
       // 单文件上传，使用简单模式
-      await this.processSingleFile(files[0]);
+      await this.processSingleFile(fileArray[0]);
     }
   }
 
@@ -180,16 +185,42 @@ class LittleGallery {
   async processBatchUpload(files) {
     console.log("Starting batch upload for", files.length, "files");
 
+    // 验证文件对象
+    console.log("File objects validation:");
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      console.log(`File ${i + 1}:`, {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        lastModified: file.lastModified,
+        isFile: file instanceof File,
+        hasSize: "size" in file,
+      });
+    }
+
     // 检查存储空间
     try {
+      console.log(
+        "About to check storage space for files:",
+        files.map((f) => ({ name: f.name, size: f.size }))
+      );
       const storageCheck = await this.checkStorageSpace(files);
+      console.log("Storage check result:", storageCheck);
+
       if (!storageCheck.canUpload) {
+        console.log(
+          "Storage check failed - cannot upload:",
+          storageCheck.message
+        );
         this.showStatus(storageCheck.message, "error");
         return;
       }
       if (storageCheck.warning) {
+        console.log("Storage check warning:", storageCheck.message);
         this.showStatus(storageCheck.message, "warning");
       }
+      console.log("Storage check passed, proceeding with upload...");
     } catch (error) {
       console.warn("Storage check failed:", error);
       // 继续上传，但给出警告
@@ -207,6 +238,8 @@ class LittleGallery {
     let failedCount = 0;
     const results = [];
 
+    console.log(`Starting batch upload loop for ${files.length} files`);
+
     for (let i = 0; i < files.length; i++) {
       // 检查是否被取消
       if (this.batchUploadCancelled) {
@@ -218,6 +251,12 @@ class LittleGallery {
       const originalName = file.name;
 
       console.log(`Processing file ${i + 1}/${files.length}:`, originalName);
+      console.log(`File details:`, {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        lastModified: file.lastModified,
+      });
 
       // 更新总体进度
       this.updateBatchProgress(i, files.length, `正在上传: ${originalName}`);
@@ -225,7 +264,16 @@ class LittleGallery {
       // 添加文件到进度列表
       const fileId = this.addFileToProgressList(originalName, "uploading");
 
-      if (!this.isValidImageFile(file)) {
+      // 检查文件格式
+      const isValid = this.isValidImageFile(file);
+      console.log(`File format validation for ${originalName}:`, {
+        isValid: isValid,
+        fileType: file.type,
+        fileName: file.name,
+        fileExtension: file.name.split(".").pop()?.toLowerCase(),
+      });
+
+      if (!isValid) {
         console.log("Invalid file format:", originalName);
         this.updateFileProgress(fileId, "error", "格式不支持");
         failedCount++;
@@ -272,6 +320,15 @@ class LittleGallery {
     }
 
     // 更新最终进度
+    const totalProcessed = successCount + failedCount;
+    console.log(`Batch upload completed:`, {
+      totalFiles: files.length,
+      totalProcessed: totalProcessed,
+      successCount: successCount,
+      failedCount: failedCount,
+      cancelled: this.batchUploadCancelled,
+    });
+
     if (!this.batchUploadCancelled) {
       this.updateBatchProgress(
         files.length,
@@ -340,13 +397,23 @@ class LittleGallery {
   }
 
   isValidImageFile(file) {
-    const validTypes = ["image/jpeg", "image/jpg", "image/bmp", "image/png"];
-    const validExtensions = [".jpg", ".jpeg", ".bmp", ".png"];
+    // ESP32支持的图片格式：JPEG和BMP
+    const validTypes = ["image/jpeg", "image/jpg", "image/bmp"];
+    const validExtensions = [".jpg", ".jpeg", ".bmp"];
 
-    return (
-      validTypes.includes(file.type) ||
-      validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
+    const isValidType = validTypes.includes(file.type);
+    const isValidExtension = validExtensions.some((ext) =>
+      file.name.toLowerCase().endsWith(ext)
     );
+
+    console.log(`File validation for ${file.name}:`, {
+      fileType: file.type,
+      isValidType: isValidType,
+      isValidExtension: isValidExtension,
+      result: isValidType || isValidExtension,
+    });
+
+    return isValidType || isValidExtension;
   }
 
   generateSafeFileName(originalName) {
@@ -880,9 +947,13 @@ class LittleGallery {
 
       // 估算文件总大小
       let totalSize = 0;
-      for (const file of files) {
-        totalSize += file.size;
+      console.log("Calculating total file size...");
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log(`File ${i + 1}: ${file.name}, size: ${file.size} bytes`);
+        totalSize += file.size || 0; // 防止undefined
       }
+      console.log(`Total calculated size: ${totalSize} bytes`);
 
       const availableSpace = status.available_storage;
       const storageUsedPercent = status.storage_used_percent;
