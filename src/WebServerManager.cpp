@@ -32,11 +32,16 @@ namespace WebServerManager
     scanImages();
     
     // 初始化Web服务器
-    server = AsyncWebServer(WEB_SERVER_PORT);
+    server = new AsyncWebServer(WEB_SERVER_PORT);
+    if (!server)
+    {
+      Serial.println("Failed to create web server");
+      return false;
+    }
     setupRoutes();
     
     // 启动服务器
-    server.begin();
+    server->begin();
     serverRunning = true;
     
     Serial.println("Web server started successfully");
@@ -44,7 +49,16 @@ namespace WebServerManager
     
     return true;
   }
-  
+
+  void WebServerController::stop()
+  {
+    if (server && serverRunning)
+    {
+      serverRunning = false;
+      Serial.println("Web server stopped");
+    }
+  }
+
   bool WebServerController::connectWiFi(const char* ssid, const char* password)
   {
     Serial.printf("Connecting to WiFi: %s\n", ssid);
@@ -127,7 +141,83 @@ namespace WebServerManager
     ext.toLowerCase();
     return (ext == ".jpg" || ext == ".jpeg" || ext == ".bmp");
   }
-  
+
+  String WebServerController::generateSafeFilename(const String &originalName) const
+  {
+    // 获取文件扩展名
+    int lastDotIndex = originalName.lastIndexOf('.');
+    String extension = (lastDotIndex > -1) ? originalName.substring(lastDotIndex) : "";
+    String nameWithoutExt = (lastDotIndex > -1) ? originalName.substring(0, lastDotIndex) : originalName;
+
+    // 清理文件名：只保留字母、数字、下划线和连字符
+    String cleanName = "";
+    for (int i = 0; i < nameWithoutExt.length(); i++)
+    {
+      char c = nameWithoutExt.charAt(i);
+      if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '_' || c == '-')
+      {
+        cleanName += c;
+      }
+      else
+      {
+        cleanName += '_';
+      }
+    }
+
+    // 移除连续的下划线
+    while (cleanName.indexOf("__") >= 0)
+    {
+      cleanName.replace("__", "_");
+    }
+
+    // 移除开头和结尾的下划线
+    while (cleanName.startsWith("_"))
+    {
+      cleanName = cleanName.substring(1);
+    }
+    while (cleanName.endsWith("_"))
+    {
+      cleanName = cleanName.substring(0, cleanName.length() - 1);
+    }
+
+    // 如果清理后的名称为空，使用默认名称
+    if (cleanName.length() == 0)
+    {
+      cleanName = "image";
+    }
+
+    // 计算最大允许的名称长度（总长度限制25 - 扩展名长度 - 时间戳长度）
+    int maxNameLength = 25 - extension.length() - 7; // 7 = '_' + 6位时间戳
+
+    // 如果名称太长，截断
+    if (cleanName.length() > maxNameLength)
+    {
+      cleanName = cleanName.substring(0, maxNameLength);
+    }
+
+    // 添加时间戳确保唯一性
+    unsigned long timestamp = millis() % 1000000; // 取6位数字
+    String finalName = cleanName + "_" + String(timestamp) + extension;
+
+    // 最终检查长度
+    if (finalName.length() > 25)
+    {
+      int availableLength = 25 - extension.length() - 7;
+      if (availableLength > 0)
+      {
+        cleanName = cleanName.substring(0, availableLength);
+        finalName = cleanName + "_" + String(timestamp) + extension;
+      }
+      else
+      {
+        finalName = "img_" + String(timestamp) + extension;
+      }
+    }
+
+    return finalName;
+  }
+
   String WebServerController::getCurrentImageName() const
   {
     if (imageCount > 0 && currentImageIndex >= 0 && currentImageIndex < imageCount) {
@@ -174,9 +264,9 @@ namespace WebServerManager
   
   String WebServerController::getImageListJson() const
   {
-    DynamicJsonDocument doc(2048);
-    JsonArray images = doc.createNestedArray("images");
-    
+    JsonDocument doc;
+    JsonArray images = doc["images"].to<JsonArray>();
+
     for (int i = 0; i < imageCount; i++) {
       images.add(imageList[i]);
     }
@@ -189,46 +279,61 @@ namespace WebServerManager
     serializeJson(doc, result);
     return result;
   }
-  
+
+  String WebServerController::getSystemStatusJson() const
+  {
+    JsonDocument doc;
+
+    doc["wifi"] = isWiFiConnected();
+    doc["ip"] = getIPAddress();
+    doc["uptime"] = millis() / 1000; // 运行时间（秒）
+
+    // 获取存储信息
+    size_t totalBytes = LittleFS.totalBytes();
+    size_t usedBytes = LittleFS.usedBytes();
+    doc["storage"] = String(usedBytes / 1024) + "KB / " + String(totalBytes / 1024) + "KB";
+
+    // 图片统计
+    doc["imageCount"] = imageCount;
+    doc["currentImage"] = getCurrentImageName();
+    doc["currentIndex"] = currentImageIndex;
+
+    String result;
+    serializeJson(doc, result);
+    return result;
+  }
+
   void WebServerController::setupRoutes()
   {
-    // 静态文件服务
-    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+    // 先注册API路由
+    server->on("/api/images", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleImageListAPI(request); });
 
-    // API路由
-    server.on("/api/images", HTTP_GET, [this](AsyncWebServerRequest *request){
-      handleImageListAPI(request);
-    });
+    server->on("/api/next", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleNextImageAPI(request); });
 
-    server.on("/api/next", HTTP_POST, [this](AsyncWebServerRequest *request){
-      handleNextImageAPI(request);
-    });
+    server->on("/api/previous", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handlePreviousImageAPI(request); });
 
-    server.on("/api/previous", HTTP_POST, [this](AsyncWebServerRequest *request){
-      handlePreviousImageAPI(request);
-    });
+    server->on("/api/setimage", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleSetImageAPI(request); });
 
-    server.on("/api/setimage", HTTP_POST, [this](AsyncWebServerRequest *request){
-      handleSetImageAPI(request);
-    });
+    server->on("/api/delete", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleDeleteImageAPI(request); });
 
-    server.on("/api/delete", HTTP_POST, [this](AsyncWebServerRequest *request){
-      handleDeleteImageAPI(request);
-    });
-
-    server.on("/api/status", HTTP_GET, [this](AsyncWebServerRequest *request){
-      handleSystemStatusAPI(request);
-    });
+    server->on("/api/status", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleSystemStatusAPI(request); });
 
     // 文件上传
-    server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request){
-      request->send(200, "text/plain", "Upload complete");
-    }, handleFileUpload);
+    server->on("/upload", HTTP_POST, [](AsyncWebServerRequest *request)
+               { request->send(200, "text/plain", "Upload complete"); }, handleFileUpload);
+
+    // 再注册静态文件服务
+    server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
     // 404处理
-    server.onNotFound([](AsyncWebServerRequest *request){
-      request->send(404, "text/plain", "File not found");
-    });
+    server->onNotFound([](AsyncWebServerRequest *request)
+                       { request->send(404, "text/plain", "File not found"); });
   }
   
 
@@ -295,7 +400,7 @@ namespace WebServerManager
 
   void WebServerController::handleSystemStatusAPI(AsyncWebServerRequest *request)
   {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;
 
     doc["wifi"] = isWiFiConnected();
     doc["ip"] = getIPAddress();
@@ -401,27 +506,35 @@ namespace WebServerManager
                                             size_t index, uint8_t *data, size_t len, bool final)
   {
     static File uploadFile;
+    static String safeFilename;
 
     if (!index) {
       // 开始上传
       Serial.printf("Upload start: %s\n", filename.c_str());
 
+      // 生成安全的文件名
+      safeFilename = generateSafeFilename(filename);
+      Serial.printf("Safe filename: %s\n", safeFilename.c_str());
+
       // 确保文件名以斜杠开头
-      if (!filename.startsWith("/")) {
-        filename = "/" + filename;
+      if (!safeFilename.startsWith("/"))
+      {
+        safeFilename = "/" + safeFilename;
       }
 
       // 检查文件扩展名
-      String ext = filename.substring(filename.lastIndexOf('.'));
+      String ext = safeFilename.substring(safeFilename.lastIndexOf('.'));
       ext.toLowerCase();
       if (ext != ".jpg" && ext != ".jpeg" && ext != ".bmp") {
         Serial.println("Unsupported file format");
         return;
       }
 
-      uploadFile = LittleFS.open(filename, "w");
+      uploadFile = LittleFS.open(safeFilename, "w");
       if (!uploadFile) {
-        Serial.println("Failed to open file for writing");
+        Serial.printf("Failed to open file for writing: %s\n", safeFilename.c_str());
+        Serial.printf("Used: %d, Total: %d\n", LittleFS.usedBytes(), LittleFS.totalBytes());
+        Serial.printf("Filename length: %d\n", safeFilename.length());
         return;
       }
     }

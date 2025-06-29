@@ -4,7 +4,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
 #include <SPI.h>
-#include "Config.h"
+#include "secrets.h"
 
 namespace Display
 {
@@ -12,6 +12,9 @@ namespace Display
   class ILI9341Manager
   {
   public:
+    // 构造函数
+    ILI9341Manager() : tft(TFT_CS, TFT_DC, TFT_RST), initialized(false) {}
+
     // 初始化和设置
     bool begin();
     void setRotation(uint8_t rotation);

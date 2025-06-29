@@ -1,4 +1,5 @@
 #include "ILI9341.h"
+#include <WiFi.h>
 
 namespace Display
 {
@@ -17,10 +18,9 @@ namespace Display
     
     // 初始化引脚
     initializePins();
-    
-    // 初始化TFT对象
-    tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
-    
+
+    // TFT对象已在构造函数中初始化
+
     // 开始初始化显示屏
     tft.begin();
     

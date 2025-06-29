@@ -4,7 +4,7 @@
 #include <LittleFS.h>
 #include <TJpg_Decoder.h>
 #include "ILI9341.h"
-#include "Config.h"
+#include "secrets.h"
 
 namespace ImageDisplay
 {
@@ -75,8 +75,11 @@ namespace ImageDisplay
 
     // JPEG解码相关
     bool initJPEGDecoder();
+
+  public:
     static bool jpegOutputCallback(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap);
 
+  private:
     // BMP解码相关
     bool readBMPHeader(File& file, BMPHeader& header);
     bool validateBMPHeader(const BMPHeader& header);

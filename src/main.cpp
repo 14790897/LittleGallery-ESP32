@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <LittleFS.h>
-#include "Config.h"
+#include "secrets.h"
 #include "ILI9341.h"
 #include "WebServer.h"
 #include "ImageDisplay.h"
@@ -10,6 +10,10 @@
 unsigned long lastImageUpdate = 0;
 String lastDisplayedImage = "";
 int lastImageIndex = -1;
+
+// ==================== 函数声明 ====================
+void updateDisplayedImage();
+bool hasImageChanged();
 
 // ==================== 主程序函数 ====================
 

@@ -168,8 +168,8 @@ namespace ImageDisplay
       return false;
     }
   }
-  
-  bool displayBMP(const char* filename)
+
+  bool ImageDisplayManager::displayBMP(const char *filename)
   {
     Serial.printf("Displaying BMP: %s\n", filename);
     
@@ -212,12 +212,12 @@ namespace ImageDisplay
                   header.width, header.height, header.bitsPerPixel);
     
     // 清屏
-    ILI9341::tft.fillScreen(ILI9341_BLACK);
-    
+    Display::getTFT().fillScreen(ILI9341_BLACK);
+
     // 计算居中位置
-    int16_t startX = (ILI9341::SCREEN_WIDTH - header.width) / 2;
-    int16_t startY = (ILI9341::SCREEN_HEIGHT - header.height) / 2;
-    
+    int16_t startX = (SCREEN_WIDTH - header.width) / 2;
+    int16_t startY = (SCREEN_HEIGHT - header.height) / 2;
+
     if (startX < 0) startX = 0;
     if (startY < 0) startY = 0;
     
@@ -244,11 +244,13 @@ namespace ImageDisplay
       }
       
       // 转换并显示像素
-      for (uint32_t x = 0; x < header.width && x < ILI9341::SCREEN_WIDTH; x++) {
-        if (startX + x >= ILI9341::SCREEN_WIDTH || startY + y >= ILI9341::SCREEN_HEIGHT) {
+      for (uint32_t x = 0; x < header.width && x < SCREEN_WIDTH; x++)
+      {
+        if (startX + x >= SCREEN_WIDTH || startY + y >= SCREEN_HEIGHT)
+        {
           continue;
         }
-        
+
         // BMP格式是BGR，需要转换为RGB
         uint8_t b = rowBuffer[x * 3];
         uint8_t g = rowBuffer[x * 3 + 1];
@@ -256,8 +258,8 @@ namespace ImageDisplay
         
         // 转换为16位RGB565格式
         uint16_t color = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-        
-        ILI9341::tft.drawPixel(startX + x, startY + y, color);
+
+        Display::getTFT().drawPixel(startX + x, startY + y, color);
       }
     }
     
@@ -267,41 +269,7 @@ namespace ImageDisplay
     Serial.println("BMP displayed successfully");
     return true;
   }
-  
-  bool displayImage(const char* filename)
-  {
-    if (!filename || strlen(filename) == 0) {
-      showNoImageMessage();
-      return false;
-    }
-    
-    String name = String(filename);
-    name.toLowerCase();
-    
-    if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
-      return displayJPEG(filename);
-    } else if (name.endsWith(".bmp")) {
-      return displayBMP(filename);
-    } else {
-      Serial.printf("Unsupported image format: %s\n", filename);
-      showNoImageMessage();
-      return false;
-    }
-  }
-  
-  void showNoImageMessage()
-  {
-    ILI9341::tft.fillScreen(ILI9341_BLACK);
-    ILI9341::tft.setTextColor(ILI9341_WHITE);
-    ILI9341::tft.setTextSize(2);
-    ILI9341::tft.setCursor(50, 100);
-    ILI9341::tft.print("No Image");
-    ILI9341::tft.setCursor(30, 130);
-    ILI9341::tft.print("Upload images");
-    ILI9341::tft.setCursor(40, 160);
-    ILI9341::tft.print("via web interface");
-  }
-  
+
   // ==================== 辅助函数实现 ====================
 
   void ImageDisplayManager::calculateImagePosition(uint16_t imgWidth, uint16_t imgHeight,
@@ -360,11 +328,6 @@ namespace ImageDisplay
   bool displayJPEG(const char* filename)
   {
     return imageDisplayManager.displayJPEG(filename);
-  }
-
-  bool displayBMP(const char* filename)
-  {
-    return imageDisplayManager.displayBMP(filename);
   }
 
   void showNoImageMessage()

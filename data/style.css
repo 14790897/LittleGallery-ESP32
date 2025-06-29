@@ -81,12 +81,28 @@ header h1 {
     text-align: center;
     transition: var(--transition);
     background: var(--light-color);
+    position: relative;
 }
 
 .upload-area:hover,
 .upload-area.dragover {
     border-color: var(--primary-color);
     background: rgba(0, 123, 255, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
+}
+
+.upload-area::after {
+    content: "⚡ 自动上传";
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: var(--success-color);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
 }
 
 .upload-label {
@@ -112,22 +128,7 @@ header h1 {
     display: none;
 }
 
-.upload-btn {
-    background: var(--success-color);
-    color: white;
-    border: none;
-    padding: 12px 30px;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: 1rem;
-    margin-top: 15px;
-    transition: var(--transition);
-}
-
-.upload-btn:hover {
-    background: #218838;
-    transform: translateY(-2px);
-}
+/* 上传按钮样式已移除，因为现在是自动上传 */
 
 /* 进度条样式 */
 .progress-bar {

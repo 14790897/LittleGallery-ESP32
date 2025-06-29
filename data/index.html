@@ -21,10 +21,17 @@
                     <label for="fileInput" class="upload-label">
                         <span class="upload-icon">📁</span>
                         <span>选择图片文件或拖拽到此处</span>
-                        <span class="upload-hint">支持 JPG, JPEG, BMP 格式</span>
+                        <span class="upload-hint">支持 JPG, JPEG, BMP 格式 - 选择后自动上传</span>
+                        <span class="upload-hint">📝 长文件名将自动缩短以符合系统要求</span>
                     </label>
-                    <button type="submit" class="upload-btn">上传</button>
                 </form>
+            </div>
+            <div class="upload-tips">
+                <ul>
+                    <li>文件名建议不超过31个字符，避免特殊符号（如空格、冒号、斜杠等）。</li>
+                    <li>单张图片最大2MB，支持 JPG/JPEG/BMP 格式。</li>
+                    <li>如上传失败，请尝试重命名为英文和数字组合的短文件名。</li>
+                </ul>
             </div>
             <div id="uploadStatus" class="status-message"></div>
             <div id="uploadProgress" class="progress-bar" style="display: none;">
@@ -36,13 +43,6 @@
             <h3>🎮 图片控制</h3>
             <div class="control-buttons">
                 <button onclick="previousImage()" class="control-btn">⬅️ 上一张</button>
-                <button onclick="nextImage()" class="control-btn">➡️ 下一张</button>
-                <button onclick="refreshImageList()" class="control-btn">🔄 刷新</button>
-                <button onclick="toggleSlideshow()" class="control-btn" id="slideshowBtn">▶️ 幻灯片</button>
-            </div>
-            <div id="currentImageInfo" class="current-image-info"></div>
-        </div>
-        
         <div class="image-list-section">
             <h3>📁 图片列表</h3>
             <div class="list-controls">

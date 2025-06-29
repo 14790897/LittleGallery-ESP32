@@ -5,7 +5,7 @@
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
-#include "Config.h"
+#include "secrets.h"
 
 namespace WebServerManager
 {
@@ -14,6 +14,19 @@ namespace WebServerManager
   class WebServerController
   {
   public:
+    // 构造函数
+    WebServerController() : server(nullptr), serverRunning(false), fileSystemReady(false), imageCount(0), currentImageIndex(0) {}
+
+    // 析构函数
+    ~WebServerController()
+    {
+      if (server)
+      {
+        delete server;
+        server = nullptr;
+      }
+    }
+
     // 初始化和设置
     bool begin();
     void stop();
@@ -45,7 +58,7 @@ namespace WebServerManager
     String getSystemStatusJson() const;
 
   private:
-    AsyncWebServer server;
+    AsyncWebServer *server;
     bool serverRunning;
     bool fileSystemReady;
 
@@ -75,6 +88,7 @@ namespace WebServerManager
     bool isValidImageFile(const String& filename) const;
     String sanitizeFilename(const String& filename) const;
     bool validateImageUpload(const String& filename, size_t fileSize) const;
+    String generateSafeFilename(const String &originalName) const;
   };
 
   // 全局Web服务器控制器实例
