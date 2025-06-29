@@ -35,6 +35,9 @@ class LittleGallery {
     // 加载预处理设置
     this.loadPreprocessingSettings();
 
+    // 验证API端点
+    this.verifyAPIEndpoints();
+
     // 定期刷新
     setInterval(() => this.refreshImageList(), 5000);
     setInterval(() => this.updateSystemStatus(), 30000);
@@ -850,8 +853,30 @@ class LittleGallery {
 
   async checkStorageSpace(files) {
     try {
+      console.log("Checking storage space via /api/upload-status...");
       const response = await fetch("/api/upload-status");
-      const status = await response.json();
+
+      console.log("Response status:", response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error(
+          `API request failed: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const responseText = await response.text();
+      console.log("Raw response:", responseText);
+
+      let status;
+      try {
+        status = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        console.error("Response text:", responseText);
+        throw new Error(
+          `Invalid JSON response: ${responseText.substring(0, 100)}`
+        );
+      }
 
       // 估算文件总大小
       let totalSize = 0;
@@ -1144,6 +1169,33 @@ class LittleGallery {
       } else {
         statusIndicator.textContent = "已禁用";
         statusIndicator.className = "preprocessing-indicator disabled";
+      }
+    }
+  }
+
+  async verifyAPIEndpoints() {
+    console.log("Verifying API endpoints...");
+
+    const endpoints = [
+      { url: "/api/upload-status", name: "Upload Status" },
+      { url: "/api/orientation", name: "Orientation Settings" },
+      { url: "/api/images", name: "Image List" },
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`Testing ${endpoint.name}: ${endpoint.url}`);
+        const response = await fetch(endpoint.url);
+
+        if (response.ok) {
+          console.log(`✅ ${endpoint.name} API working`);
+        } else {
+          console.warn(
+            `⚠️ ${endpoint.name} API returned ${response.status}: ${response.statusText}`
+          );
+        }
+      } catch (error) {
+        console.error(`❌ ${endpoint.name} API failed:`, error.message);
       }
     }
   }

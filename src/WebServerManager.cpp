@@ -340,16 +340,64 @@ namespace WebServerManager
     server->on("/api/upload-status", HTTP_GET, [this](AsyncWebServerRequest *request)
                { handleUploadStatusAPI(request); });
 
+    // 添加OPTIONS请求处理 (CORS预检)
+    server->on("/api/orientation", HTTP_OPTIONS, [](AsyncWebServerRequest *request)
+               {
+                 AsyncWebServerResponse *response = request->beginResponse(200);
+                 response->addHeader("Access-Control-Allow-Origin", "*");
+                 response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                 response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+                 request->send(response); });
+
+    server->on("/api/upload-status", HTTP_OPTIONS, [](AsyncWebServerRequest *request)
+               {
+                 AsyncWebServerResponse *response = request->beginResponse(200);
+                 response->addHeader("Access-Control-Allow-Origin", "*");
+                 response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+                 response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+                 request->send(response); });
+
     // 文件上传
     server->on("/upload", HTTP_POST, [](AsyncWebServerRequest *request)
                { request->send(200, "text/plain", "Upload complete"); }, handleFileUpload);
 
-    // 再注册静态文件服务
+    // 通用API路由处理器 - 确保API请求不被静态文件服务器拦截
+    server->on("/api/*", HTTP_GET, [](AsyncWebServerRequest *request)
+               {
+                 Serial.printf("Unhandled API GET request: %s\n", request->url().c_str());
+                 JsonDocument doc;
+                 doc["error"] = "API endpoint not found";
+                 doc["path"] = request->url().c_str();
+                 doc["method"] = "GET";
+                 String response;
+                 serializeJson(doc, response);
+                 AsyncWebServerResponse *apiResponse = request->beginResponse(404, "application/json", response);
+                 apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+                 request->send(apiResponse); });
+
+    server->on("/api/*", HTTP_POST, [](AsyncWebServerRequest *request)
+               {
+                 Serial.printf("Unhandled API POST request: %s\n", request->url().c_str());
+                 JsonDocument doc;
+                 doc["error"] = "API endpoint not found";
+                 doc["path"] = request->url().c_str();
+                 doc["method"] = "POST";
+                 String response;
+                 serializeJson(doc, response);
+                 AsyncWebServerResponse *apiResponse = request->beginResponse(404, "application/json", response);
+                 apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+                 request->send(apiResponse); });
+
+    // 最后注册静态文件服务 (确保API路由优先)
     server->serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
     // 404处理
     server->onNotFound([](AsyncWebServerRequest *request)
-                       { request->send(404, "text/plain", "File not found"); });
+                       {
+                         Serial.printf("404 Not Found: %s %s\n",
+                                       request->methodToString(),
+                                       request->url().c_str());
+                         request->send(404, "text/plain", "File not found"); });
   }
   
 
@@ -469,6 +517,8 @@ namespace WebServerManager
 
   void WebServerController::handleOrientationAPI(AsyncWebServerRequest *request)
   {
+    Serial.printf("Processing orientation API request: %s %s\n",
+                  request->methodToString(), request->url().c_str());
     JsonDocument doc;
 
     // 获取当前方向设置
@@ -483,11 +533,17 @@ namespace WebServerManager
 
     String response;
     serializeJson(doc, response);
-    request->send(200, "application/json", response);
+
+    // 添加CORS头部
+    AsyncWebServerResponse *apiResponse = request->beginResponse(200, "application/json", response);
+    apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(apiResponse);
   }
 
   void WebServerController::handleSetOrientationAPI(AsyncWebServerRequest *request)
   {
+    Serial.printf("Processing set orientation API request: %s %s\n",
+                  request->methodToString(), request->url().c_str());
     // 处理POST参数
     if (request->hasParam("mode", true))
     {
@@ -514,11 +570,16 @@ namespace WebServerManager
 
     String response;
     serializeJson(doc, response);
-    request->send(200, "application/json", response);
+
+    // 添加CORS头部
+    AsyncWebServerResponse *apiResponse = request->beginResponse(200, "application/json", response);
+    apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(apiResponse);
   }
 
   void WebServerController::handleUploadStatusAPI(AsyncWebServerRequest *request)
   {
+    Serial.println("Processing upload status API request");
     JsonDocument doc;
 
     // 获取系统状态信息
@@ -558,7 +619,15 @@ namespace WebServerManager
 
     String response;
     serializeJson(doc, response);
-    request->send(200, "application/json", response);
+
+    // 添加CORS头部
+    AsyncWebServerResponse *apiResponse = request->beginResponse(200, "application/json", response);
+    apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+    apiResponse->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    apiResponse->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    request->send(apiResponse);
+
+    Serial.println("Upload status API response sent");
   }
 
   bool WebServerController::deleteImage(const String& filename)
