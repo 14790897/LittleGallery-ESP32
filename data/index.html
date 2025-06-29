@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Little Gallery ESP32</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <span class="svg-icon">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="6" width="24" height="18" rx="3" fill="#f3f3f3" stroke="#333" stroke-width="2"/>
+            <circle cx="11" cy="13" r="2.5" fill="#90caf9"/>
+            <path d="M7 22l5-6 4 5 5-7 4 8" stroke="#4caf50" stroke-width="2" fill="none"/>
+          </svg>
+      </span>
+      <span>Little Gallery ESP32</span>
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -51,6 +59,7 @@
                 <span class="image-count" id="imageCount">共 0 张图片</span>
             </div>
             <div id="imageListContainer" class="image-list"></div>
+            <div id="currentImageInfo"></div>
         </div>
         
         <div class="system-info">

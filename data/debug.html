@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Debug - Little Gallery ESP32</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+            background: rgba(0, 123, 255, 0.05);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Upload Debug Tool</h1>
+        <p>这个页面用于调试文件上传功能</p>
+        
+        <div class="upload-area">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" id="fileInput" accept=".jpg,.jpeg,.bmp" multiple>
+                <br><br>
+                <button type="button" onclick="testUpload()">测试上传</button>
+                <button type="button" onclick="clearLog()">清空日志</button>
+            </form>
+        </div>
+        
+        <div id="status"></div>
+        
+        <h3>📋 调试日志</h3>
+        <div id="log" class="log"></div>
+        
+        <h3>🔗 API测试</h3>
+        <button onclick="testAPI('/api/images')">测试图片列表API</button>
+        <button onclick="testAPI('/api/status')">测试状态API</button>
+        <button onclick="testUploadEndpoint()">测试上传端点</button>
+    </div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function showStatus(message, type = 'success') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            log(`STATUS (${type}): ${message}`);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('status').innerHTML = '';
+        }
+        
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+            
+            log('=== 开始上传测试 ===');
+            log(`选择的文件数量: ${files.length}`);
+            
+            if (files.length === 0) {
+                showStatus('请先选择文件', 'error');
+                return;
+            }
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                log(`文件 ${i + 1}: ${file.name} (${file.size} bytes, ${file.type})`);
+                
+                try {
+                    await uploadFile(file);
+                    showStatus(`文件 ${file.name} 上传成功`, 'success');
+                } catch (error) {
+                    showStatus(`文件 ${file.name} 上传失败: ${error.message}`, 'error');
+                }
+            }
+            
+            log('=== 上传测试完成 ===');
+        }
+        
+        async function uploadFile(file) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                log(`开始上传: ${file.name}`);
+                
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total * 100).toFixed(1);
+                        log(`上传进度: ${percent}%`);
+                    }
+                });
+                
+                xhr.addEventListener('load', () => {
+                    log(`上传完成，状态码: ${xhr.status}`);
+                    log(`响应内容: ${xhr.responseText}`);
+                    
+                    if (xhr.status === 200) {
+                        resolve();
+                    } else {
+                        reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
+                    }
+                });
+                
+                xhr.addEventListener('error', () => {
+                    log('上传发生网络错误');
+                    reject(new Error('网络错误'));
+                });
+                
+                xhr.open('POST', '/upload');
+                xhr.send(formData);
+            });
+        }
+        
+        async function testAPI(endpoint) {
+            log(`=== 测试API: ${endpoint} ===`);
+            
+            try {
+                const response = await fetch(endpoint);
+                log(`状态码: ${response.status}`);
+                
+                const text = await response.text();
+                log(`响应内容: ${text}`);
+                
+                if (response.ok) {
+                    showStatus(`API ${endpoint} 测试成功`, 'success');
+                } else {
+                    showStatus(`API ${endpoint} 测试失败: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`API请求失败: ${error.message}`);
+                showStatus(`API ${endpoint} 请求失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testUploadEndpoint() {
+            log('=== 测试上传端点可用性 ===');
+            
+            try {
+                // 发送一个空的POST请求测试端点
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: new FormData()
+                });
+                
+                log(`上传端点状态码: ${response.status}`);
+                log(`上传端点响应: ${await response.text()}`);
+                
+                if (response.status === 200) {
+                    showStatus('上传端点可用', 'success');
+                } else {
+                    showStatus(`上传端点返回: ${response.status}`, 'warning');
+                }
+            } catch (error) {
+                log(`上传端点测试失败: ${error.message}`);
+                showStatus(`上传端点不可用: ${error.message}`, 'error');
+            }
+        }
+        
+        // 页面加载时的初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            log('调试页面已加载');
+            log('请选择图片文件进行上传测试');
+        });
+    </script>
+</body>
+</html>

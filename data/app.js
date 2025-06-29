@@ -29,7 +29,9 @@ class LittleGallery {
 
     // 文件选择后自动上传
     fileInput.addEventListener("change", (e) => {
+      console.log("File input changed:", e.target.files.length, "files");
       if (e.target.files.length > 0) {
+        console.log("Starting upload...");
         this.handleUpload(e);
       }
     });
@@ -63,10 +65,13 @@ class LittleGallery {
   }
 
   async handleUpload(e) {
+    console.log("handleUpload called");
     e.preventDefault();
 
     const fileInput = document.getElementById("fileInput");
     const files = fileInput.files;
+
+    console.log("Files found:", files.length);
 
     if (files.length === 0) {
       this.showStatus("请选择文件", "error");
@@ -74,6 +79,7 @@ class LittleGallery {
     }
 
     // 使用统一的文件处理方法
+    console.log("Processing files...");
     await this.processFiles(files);
 
     // 清空文件输入框
@@ -81,22 +87,28 @@ class LittleGallery {
   }
 
   async processFiles(files) {
+    console.log("processFiles called with", files.length, "files");
     this.showLoading(true);
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const originalName = file.name;
+      console.log("Processing file:", originalName);
 
       if (!this.isValidImageFile(file)) {
+        console.log("Invalid file format:", originalName);
         this.showStatus(`文件 ${originalName} 格式不支持`, "warning");
         continue;
       }
 
       // 生成安全的文件名
       const safeFileName = this.generateSafeFileName(originalName);
+      console.log("Safe filename:", safeFileName);
 
       try {
+        console.log("Starting upload for:", safeFileName);
         await this.uploadFileWithName(file, safeFileName);
+        console.log("Upload successful for:", safeFileName);
         if (safeFileName !== originalName) {
           this.showStatus(
             `文件 "${originalName}" 已重命名为 "${safeFileName}" 并上传成功`,
@@ -106,6 +118,7 @@ class LittleGallery {
           this.showStatus(`文件 ${originalName} 上传成功`, "success");
         }
       } catch (error) {
+        console.error("Upload failed for:", originalName, error);
         this.showStatus(
           `文件 ${originalName} 上传失败: ${error.message}`,
           "error"
@@ -113,6 +126,7 @@ class LittleGallery {
       }
     }
 
+    console.log("All files processed, refreshing list...");
     this.showLoading(false);
     this.refreshImageList();
   }
@@ -122,34 +136,41 @@ class LittleGallery {
   }
 
   async uploadFileWithName(file, fileName) {
+    console.log("uploadFileWithName called:", fileName);
     return new Promise((resolve, reject) => {
       const formData = new FormData();
 
       // 创建一个新的File对象，使用自定义文件名
       const renamedFile = new File([file], fileName, { type: file.type });
       formData.append("file", renamedFile);
+      console.log("FormData prepared, file size:", file.size);
 
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener("progress", (e) => {
         if (e.lengthComputable) {
           const percentComplete = (e.loaded / e.total) * 100;
+          console.log("Upload progress:", percentComplete.toFixed(1) + "%");
           this.updateProgress(percentComplete);
         }
       });
 
       xhr.addEventListener("load", () => {
+        console.log("Upload completed, status:", xhr.status);
+        console.log("Response:", xhr.responseText);
         if (xhr.status === 200) {
           resolve();
         } else {
-          reject(new Error(`HTTP ${xhr.status}`));
+          reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
         }
       });
 
       xhr.addEventListener("error", () => {
+        console.error("Upload error occurred");
         reject(new Error("网络错误"));
       });
 
+      console.log("Starting upload to /upload");
       xhr.open("POST", "/upload");
       xhr.send(formData);
     });

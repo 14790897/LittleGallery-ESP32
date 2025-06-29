@@ -513,7 +513,7 @@ namespace WebServerManager
       Serial.printf("Upload start: %s\n", filename.c_str());
 
       // 生成安全的文件名
-      safeFilename = generateSafeFilename(filename);
+      safeFilename = webServerController.generateSafeFilename(filename);
       Serial.printf("Safe filename: %s\n", safeFilename.c_str());
 
       // 确保文件名以斜杠开头
@@ -548,7 +548,7 @@ namespace WebServerManager
       // 上传完成
       if (uploadFile) {
         uploadFile.close();
-        Serial.printf("Upload complete: %s (%d bytes)\n", filename.c_str(), index + len);
+        Serial.printf("Upload complete: %s (%d bytes)\n", safeFilename.c_str(), index + len);
 
         // 重新扫描图片列表
         webServerController.scanImages();
