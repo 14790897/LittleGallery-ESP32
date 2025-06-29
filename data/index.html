@@ -25,13 +25,14 @@
             <h3>📤 上传图片</h3>
             <div class="upload-area" id="uploadArea">
                 <form id="uploadForm" enctype="multipart/form-data">
-                    <input type="file" id="fileInput" accept=".jpg,.jpeg,.bmp,image/jpeg,image/bmp" multiple>
+                    <input type="file" id="fileInput" accept=".jpg,.jpeg,.bmp,.png,image/jpeg,image/bmp,image/png" multiple>
                     <label for="fileInput" class="upload-label">
                         <span class="upload-icon">📁</span>
                         <span>选择图片文件或拖拽到此处</span>
-                        <span class="upload-hint">支持 JPG, JPEG, BMP 格式 - 支持批量上传</span>
+                        <span class="upload-hint">支持 JPG, JPEG, BMP, PNG 格式 - 支持批量上传</span>
                         <span class="upload-hint">📝 长文件名将自动缩短以符合系统要求</span>
                         <span class="upload-hint">🔄 选择多个文件可批量上传</span>
+                        <span class="upload-hint">🔄 PNG文件将自动转换为JPG以减小文件大小</span>
                         <span class="upload-hint">
                             🖼️ 前端预处理:
                             <span id="preprocessingStatus" class="preprocessing-indicator enabled">已启用</span>
@@ -149,13 +150,31 @@
                     <select id="targetResolution" onchange="updatePreprocessingSettings()">
                         <option value="320x240">320x240 (横屏)</option>
                         <option value="240x320">240x320 (竖屏)</option>
-                        <option value="auto">自动选择最佳</option>
+                        <option value="auto" selected>自动选择最佳</option>
                     </select>
                 </div>
                 <div class="control-group">
                     <label for="imageQuality">图片质量:</label>
-                    <input type="range" id="imageQuality" min="0.5" max="1.0" step="0.1" value="0.8" onchange="updatePreprocessingSettings()">
-                    <span id="qualityValue">80%</span>
+                    <input type="range" id="imageQuality" min="0.1" max="0.9" step="0.1" value="0.5" onchange="updatePreprocessingSettings()">
+                    <span id="qualityValue">50%</span>
+                </div>
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="convertPngToJpg" onchange="updatePreprocessingSettings()" checked>
+                        自动将PNG转换为JPG (推荐)
+                    </label>
+                    <small style="color: #666; display: block; margin-top: 4px;">
+                        PNG文件会自动转换为JPG格式以减小文件大小
+                    </small>
+                </div>
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="autoRotate" onchange="updatePreprocessingSettings()" checked>
+                        智能自动旋转图片 (推荐)
+                    </label>
+                    <small style="color: #666; display: block; margin-top: 4px;">
+                        根据图片内容自动旋转以获得最佳显示效果
+                    </small>
                 </div>
                 <div class="control-group">
                     <label for="resizeMode">缩放模式:</label>

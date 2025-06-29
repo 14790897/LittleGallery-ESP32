@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片压缩测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .preview {
+            max-width: 300px;
+            max-height: 300px;
+            margin: 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>图片压缩测试</h1>
+    
+    <div class="test-area">
+        <input type="file" id="testFile" accept=".jpg,.jpeg,.bmp,.png">
+        <button onclick="testCompression()">测试压缩</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+        // 简化的压缩设置
+        const compressionSettings = {
+            quality: 0.5,
+            convertPngToJpg: true,
+            autoRotate: true
+        };
+        
+        function testCompression() {
+            const fileInput = document.getElementById('testFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('请选择一个图片文件');
+                return;
+            }
+            
+            console.log('原始文件:', file.name, file.size, 'bytes');
+            
+            const img = new Image();
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            img.onload = function() {
+                // 计算目标尺寸和旋转
+                const aspectRatio = img.width / img.height;
+                let targetWidth, targetHeight, shouldRotate = false;
+
+                if (compressionSettings.autoRotate) {
+                    // 智能旋转模式
+                    if (aspectRatio > 1.0) {
+                        // 横屏图片
+                        targetWidth = 320;
+                        targetHeight = 240;
+                        shouldRotate = false;
+                    } else {
+                        // 竖屏图片，检查旋转后是否更好
+                        const horizontalFit = Math.min(320 / img.width, 240 / img.height);
+                        const verticalFit = Math.min(240 / img.width, 320 / img.height);
+
+                        if (horizontalFit > verticalFit) {
+                            targetWidth = 320;
+                            targetHeight = 240;
+                            shouldRotate = true;
+                        } else {
+                            targetWidth = 240;
+                            targetHeight = 320;
+                            shouldRotate = false;
+                        }
+                    }
+                } else {
+                    // 传统模式
+                    if (aspectRatio > 1.2) {
+                        targetWidth = 320;
+                        targetHeight = 240;
+                    } else if (aspectRatio < 0.8) {
+                        targetWidth = 240;
+                        targetHeight = 320;
+                    } else {
+                        targetWidth = 320;
+                        targetHeight = 240;
+                    }
+                }
+                
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+
+                // 黑色背景
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+                // 计算绘制尺寸
+                let originalWidth = img.width;
+                let originalHeight = img.height;
+
+                // 如果需要旋转，交换宽高用于计算
+                if (shouldRotate) {
+                    [originalWidth, originalHeight] = [originalHeight, originalWidth];
+                }
+
+                const scale = Math.min(targetWidth / originalWidth, targetHeight / originalHeight);
+                const drawWidth = originalWidth * scale;
+                const drawHeight = originalHeight * scale;
+                const drawX = (targetWidth - drawWidth) / 2;
+                const drawY = (targetHeight - drawHeight) / 2;
+
+                // 绘制图片
+                if (shouldRotate) {
+                    // 旋转绘制
+                    ctx.save();
+                    ctx.translate(targetWidth / 2, targetHeight / 2);
+                    ctx.rotate(Math.PI / 2);
+                    const rotatedDrawX = -drawHeight / 2;
+                    const rotatedDrawY = -drawWidth / 2;
+                    ctx.drawImage(img, rotatedDrawX, rotatedDrawY, drawHeight, drawWidth);
+                    ctx.restore();
+                } else {
+                    // 正常绘制
+                    ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+                }
+                
+                // 转换为blob
+                canvas.toBlob(function(blob) {
+                    const compressionRatio = ((file.size - blob.size) / file.size * 100).toFixed(1);
+                    
+                    // 显示结果
+                    const results = document.getElementById('results');
+                    results.innerHTML = `
+                        <div class="result">
+                            <h3>压缩结果</h3>
+                            <p><strong>原始文件:</strong> ${file.name}</p>
+                            <p><strong>原始大小:</strong> ${(file.size / 1024).toFixed(1)} KB</p>
+                            <p><strong>原始尺寸:</strong> ${img.width} x ${img.height}</p>
+                            <p><strong>压缩后大小:</strong> ${(blob.size / 1024).toFixed(1)} KB</p>
+                            <p><strong>压缩后尺寸:</strong> ${targetWidth} x ${targetHeight}</p>
+                            <p><strong>压缩率:</strong> ${compressionRatio}%</p>
+                            <p><strong>格式转换:</strong> ${file.type === 'image/png' ? 'PNG → JPG' : '保持原格式'}</p>
+                            <p><strong>图片旋转:</strong> ${shouldRotate ? '已旋转90°' : '无旋转'}</p>
+                        </div>
+                        <div>
+                            <h4>预览对比</h4>
+                            <div>
+                                <strong>原图:</strong><br>
+                                <img src="${URL.createObjectURL(file)}" class="preview" alt="原图">
+                            </div>
+                            <div>
+                                <strong>压缩后:</strong><br>
+                                <img src="${URL.createObjectURL(blob)}" class="preview" alt="压缩后">
+                            </div>
+                        </div>
+                    `;
+                }, 'image/jpeg', compressionSettings.quality);
+            };
+            
+            img.src = URL.createObjectURL(file);
+        }
+    </script>
+</body>
+</html>

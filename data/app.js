@@ -12,8 +12,10 @@ class LittleGallery {
     this.preprocessingSettings = {
       enabled: true,
       targetResolution: "auto",
-      quality: 0.8,
+      quality: 0.5, // 进一步降低质量以减小文件大小
       resizeMode: "contain",
+      convertPngToJpg: true, // 自动将PNG转换为JPG
+      autoRotate: true, // 自动旋转图片以适应屏幕方向
     };
 
     this.init();
@@ -147,15 +149,29 @@ class LittleGallery {
     try {
       // 图片预处理
       let processedFile = file;
+      let isPngConverted = false;
+
       if (this.preprocessingSettings.enabled) {
         console.log("Preprocessing image:", originalName);
         this.showStatus("正在预处理图片...", "info");
+
+        // 检查是否需要PNG转换
+        isPngConverted =
+          file.type === "image/png" &&
+          this.preprocessingSettings.convertPngToJpg;
+        if (isPngConverted) {
+          this.showStatus("正在将PNG转换为JPG并压缩...", "info");
+        }
+
         processedFile = await this.preprocessImage(file);
         console.log("Image preprocessed, new size:", processedFile.size);
       }
 
-      // 生成安全的文件名
-      const safeFileName = this.generateSafeFileName(originalName);
+      // 生成安全的文件名（考虑PNG转换）
+      const safeFileName = this.generateSafeFileName(
+        originalName,
+        isPngConverted
+      );
       console.log("Safe filename:", safeFileName);
 
       console.log("Starting upload for:", safeFileName);
@@ -199,13 +215,41 @@ class LittleGallery {
       });
     }
 
-    // 检查存储空间
+    // 先批量预处理所有文件，得到压缩后文件数组
+    let processedFiles = [];
+    let preprocessErrors = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      let processedFile = file;
+      let isPngConverted = false;
+      if (this.preprocessingSettings.enabled) {
+        isPngConverted =
+          file.type === "image/png" &&
+          this.preprocessingSettings.convertPngToJpg;
+        try {
+          processedFile = await this.preprocessImage(file);
+        } catch (e) {
+          preprocessErrors.push({ file: file.name, reason: e.message });
+          processedFile = null;
+        }
+      }
+      if (processedFile) {
+        processedFiles.push({
+          original: file,
+          processed: processedFile,
+          isPngConverted,
+        });
+      }
+    }
+
+    // 只用压缩后文件估算空间
+    const processedFileList = processedFiles.map((f) => f.processed);
     try {
       console.log(
-        "About to check storage space for files:",
-        files.map((f) => ({ name: f.name, size: f.size }))
+        "About to check storage space for processed files:",
+        processedFileList.map((f) => ({ name: f.name, size: f.size }))
       );
-      const storageCheck = await this.checkStorageSpace(files);
+      const storageCheck = await this.checkStorageSpace(processedFileList);
       console.log("Storage check result:", storageCheck);
 
       if (!storageCheck.canUpload) {
@@ -232,47 +276,57 @@ class LittleGallery {
     this.batchUploadCancelled = false;
 
     // 初始化进度
-    this.updateBatchProgress(0, files.length, "准备批量上传...");
+    this.updateBatchProgress(0, processedFileList.length, "准备批量上传...");
 
     let successCount = 0;
-    let failedCount = 0;
-    const results = [];
+    let failedCount = preprocessErrors.length;
+    const results = [
+      ...preprocessErrors.map((e) => ({
+        file: e.file,
+        status: "failed",
+        reason: e.reason,
+      })),
+    ];
 
-    console.log(`Starting batch upload loop for ${files.length} files`);
+    console.log(
+      `Starting batch upload loop for ${processedFileList.length} files`
+    );
 
-    for (let i = 0; i < files.length; i++) {
+    for (let i = 0; i < processedFiles.length; i++) {
       // 检查是否被取消
       if (this.batchUploadCancelled) {
         console.log("Batch upload cancelled by user");
         break;
       }
 
-      const file = files[i];
+      const file = processedFiles[i].original;
+      const processedFile = processedFiles[i].processed;
       const originalName = file.name;
+      const isPngConverted = processedFiles[i].isPngConverted;
 
-      console.log(`Processing file ${i + 1}/${files.length}:`, originalName);
+      console.log(
+        `Processing file ${i + 1}/${processedFileList.length}:`,
+        originalName
+      );
       console.log(`File details:`, {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        lastModified: file.lastModified,
+        name: processedFile.name,
+        type: processedFile.type,
+        size: processedFile.size,
+        lastModified: processedFile.lastModified,
       });
 
       // 更新总体进度
-      this.updateBatchProgress(i, files.length, `正在上传: ${originalName}`);
+      this.updateBatchProgress(
+        i,
+        processedFileList.length,
+        `正在上传: ${originalName}`
+      );
 
       // 添加文件到进度列表
       const fileId = this.addFileToProgressList(originalName, "uploading");
 
       // 检查文件格式
       const isValid = this.isValidImageFile(file);
-      console.log(`File format validation for ${originalName}:`, {
-        isValid: isValid,
-        fileType: file.type,
-        fileName: file.name,
-        fileExtension: file.name.split(".").pop()?.toLowerCase(),
-      });
-
       if (!isValid) {
         console.log("Invalid file format:", originalName);
         this.updateFileProgress(fileId, "error", "格式不支持");
@@ -286,17 +340,11 @@ class LittleGallery {
       }
 
       try {
-        // 图片预处理
-        let processedFile = file;
-        if (this.preprocessingSettings.enabled) {
-          console.log("Preprocessing image:", originalName);
-          this.updateFileProgress(fileId, "uploading", "预处理中...");
-          processedFile = await this.preprocessImage(file);
-          console.log("Image preprocessed, new size:", processedFile.size);
-        }
-
-        // 生成安全的文件名
-        const safeFileName = this.generateSafeFileName(originalName);
+        // 生成安全的文件名（考虑PNG转换）
+        const safeFileName = this.generateSafeFileName(
+          originalName,
+          isPngConverted
+        );
         console.log("Safe filename:", safeFileName);
 
         this.updateFileProgress(fileId, "uploading", "上传中...");
@@ -322,7 +370,7 @@ class LittleGallery {
     // 更新最终进度
     const totalProcessed = successCount + failedCount;
     console.log(`Batch upload completed:`, {
-      totalFiles: files.length,
+      totalFiles: processedFileList.length,
       totalProcessed: totalProcessed,
       successCount: successCount,
       failedCount: failedCount,
@@ -331,15 +379,15 @@ class LittleGallery {
 
     if (!this.batchUploadCancelled) {
       this.updateBatchProgress(
-        files.length,
-        files.length,
+        processedFileList.length,
+        processedFileList.length,
         `批量上传完成: ${successCount} 成功, ${failedCount} 失败`
       );
 
       // 显示总结
       this.showBatchUploadSummary(successCount, failedCount, results);
     } else {
-      this.updateBatchProgress(0, files.length, "批量上传已取消");
+      this.updateBatchProgress(0, processedFileList.length, "批量上传已取消");
     }
 
     // 刷新图片列表
@@ -397,9 +445,9 @@ class LittleGallery {
   }
 
   isValidImageFile(file) {
-    // ESP32支持的图片格式：JPEG和BMP
-    const validTypes = ["image/jpeg", "image/jpg", "image/bmp"];
-    const validExtensions = [".jpg", ".jpeg", ".bmp"];
+    // 支持的输入格式：JPEG、BMP、PNG（PNG会自动转换为JPG）
+    const validTypes = ["image/jpeg", "image/jpg", "image/bmp", "image/png"];
+    const validExtensions = [".jpg", ".jpeg", ".bmp", ".png"];
 
     const isValidType = validTypes.includes(file.type);
     const isValidExtension = validExtensions.some((ext) =>
@@ -411,20 +459,27 @@ class LittleGallery {
       isValidType: isValidType,
       isValidExtension: isValidExtension,
       result: isValidType || isValidExtension,
+      willConvertPng:
+        file.type === "image/png" && this.preprocessingSettings.convertPngToJpg,
     });
 
     return isValidType || isValidExtension;
   }
 
-  generateSafeFileName(originalName) {
+  generateSafeFileName(originalName, isPngConverted = false) {
     // 获取文件扩展名
     const lastDotIndex = originalName.lastIndexOf(".");
-    const extension =
+    let extension =
       lastDotIndex > -1 ? originalName.substring(lastDotIndex) : "";
     const nameWithoutExt =
       lastDotIndex > -1
         ? originalName.substring(0, lastDotIndex)
         : originalName;
+
+    // 如果PNG被转换为JPG，更改扩展名
+    if (isPngConverted && extension.toLowerCase() === ".png") {
+      extension = ".jpg";
+    }
 
     // 清理文件名：只保留字母、数字、下划线和连字符
     let cleanName = nameWithoutExt
@@ -1029,18 +1084,32 @@ class LittleGallery {
           // 根据缩放模式绘制图片
           this.drawImageWithMode(ctx, img, targetDimensions);
 
-          // 转换为Blob
+          // 转换为Blob - 始终输出为JPEG格式以获得最佳压缩
           canvas.toBlob(
             (blob) => {
               if (blob) {
-                // 创建新的File对象
-                const processedFile = new File([blob], file.name, {
+                // 创建新的File对象，始终使用JPEG格式
+                let newFileName = file.name;
+
+                // 如果原文件是PNG，更改文件名扩展名
+                if (
+                  file.type === "image/png" &&
+                  this.preprocessingSettings.convertPngToJpg
+                ) {
+                  newFileName = file.name.replace(/\.png$/i, ".jpg");
+                }
+
+                const processedFile = new File([blob], newFileName, {
                   type: "image/jpeg",
                   lastModified: Date.now(),
                 });
 
+                const compressionRatio = (
+                  ((file.size - processedFile.size) / file.size) *
+                  100
+                ).toFixed(1);
                 console.log(
-                  `Image processed: ${file.size} -> ${processedFile.size} bytes`
+                  `Image processed: ${file.size} -> ${processedFile.size} bytes (${compressionRatio}% reduction)`
                 );
                 resolve(processedFile);
               } else {
@@ -1066,23 +1135,56 @@ class LittleGallery {
 
   calculateTargetDimensions(originalWidth, originalHeight) {
     let targetWidth, targetHeight;
+    let shouldRotate = false;
 
     // 根据设置确定目标分辨率
     if (this.preprocessingSettings.targetResolution === "auto") {
-      // 自动选择最佳分辨率
+      // 自动选择最佳分辨率，保持ESP32显示屏的原始分辨率
       const aspectRatio = originalWidth / originalHeight;
-      if (aspectRatio > 1.2) {
-        // 横屏图片
-        targetWidth = 320;
-        targetHeight = 240;
-      } else if (aspectRatio < 0.8) {
-        // 竖屏图片
-        targetWidth = 240;
-        targetHeight = 320;
+
+      if (this.preprocessingSettings.autoRotate) {
+        // 智能旋转模式：根据图片内容选择最佳方向
+        if (aspectRatio > 1.0) {
+          // 横屏图片：宽度大于高度
+          targetWidth = 320;
+          targetHeight = 240;
+          shouldRotate = false;
+        } else {
+          // 竖屏图片：高度大于等于宽度
+          // 检查是否需要旋转以更好地利用屏幕空间
+          const horizontalFit = Math.min(320 / originalWidth, 240 / originalHeight);
+          const verticalFit = Math.min(240 / originalWidth, 320 / originalHeight);
+
+          if (horizontalFit > verticalFit) {
+            // 旋转后能更好地利用屏幕空间
+            targetWidth = 320;
+            targetHeight = 240;
+            shouldRotate = true;
+          } else {
+            // 保持竖屏方向
+            targetWidth = 240;
+            targetHeight = 320;
+            shouldRotate = false;
+          }
+        }
       } else {
-        // 正方形图片，选择横屏
-        targetWidth = 320;
-        targetHeight = 240;
+        // 传统模式：根据宽高比选择方向
+        if (aspectRatio > 1.2) {
+          // 明显的横屏图片
+          targetWidth = 320;
+          targetHeight = 240;
+          shouldRotate = false;
+        } else if (aspectRatio < 0.8) {
+          // 明显的竖屏图片
+          targetWidth = 240;
+          targetHeight = 320;
+          shouldRotate = false;
+        } else {
+          // 正方形或接近正方形的图片，默认选择横屏
+          targetWidth = 320;
+          targetHeight = 240;
+          shouldRotate = false;
+        }
       }
     } else {
       // 使用指定分辨率
@@ -1091,19 +1193,46 @@ class LittleGallery {
         .map(Number);
       targetWidth = w;
       targetHeight = h;
+
+      // 检查是否需要旋转以更好地适应目标分辨率
+      if (this.preprocessingSettings.autoRotate) {
+        const originalAspectRatio = originalWidth / originalHeight;
+        const targetAspectRatio = targetWidth / targetHeight;
+
+        // 如果原图和目标的宽高比差异很大，考虑旋转
+        if (
+          (originalAspectRatio > 1 && targetAspectRatio < 1) ||
+          (originalAspectRatio < 1 && targetAspectRatio > 1)
+        ) {
+          shouldRotate = true;
+        }
+      }
     }
 
-    return { width: targetWidth, height: targetHeight };
+    return {
+      width: targetWidth,
+      height: targetHeight,
+      shouldRotate: shouldRotate,
+    };
   }
 
   drawImageWithMode(ctx, img, targetDimensions) {
-    const { width: targetWidth, height: targetHeight } = targetDimensions;
-    const originalWidth = img.width;
-    const originalHeight = img.height;
+    const {
+      width: targetWidth,
+      height: targetHeight,
+      shouldRotate,
+    } = targetDimensions;
+    let originalWidth = img.width;
+    let originalHeight = img.height;
 
     // 清空canvas
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+    // 如果需要旋转，交换原始图片的宽高用于计算
+    if (shouldRotate) {
+      [originalWidth, originalHeight] = [originalHeight, originalWidth];
+    }
 
     let drawX, drawY, drawWidth, drawHeight;
 
@@ -1153,7 +1282,29 @@ class LittleGallery {
     }
 
     // 绘制图片
-    ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+    if (shouldRotate) {
+      // 保存当前状态
+      ctx.save();
+
+      // 移动到画布中心
+      ctx.translate(targetWidth / 2, targetHeight / 2);
+
+      // 旋转90度（顺时针）
+      ctx.rotate(Math.PI / 2);
+
+      // 调整绘制位置（因为旋转后坐标系改变）
+      const rotatedDrawX = -drawHeight / 2;
+      const rotatedDrawY = -drawWidth / 2;
+
+      // 绘制旋转后的图片（注意宽高交换）
+      ctx.drawImage(img, rotatedDrawX, rotatedDrawY, drawHeight, drawWidth);
+
+      // 恢复状态
+      ctx.restore();
+    } else {
+      // 正常绘制
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+    }
   }
 
   updatePreprocessingSettings() {
@@ -1162,6 +1313,8 @@ class LittleGallery {
     const qualitySlider = document.getElementById("imageQuality");
     const qualityValue = document.getElementById("qualityValue");
     const resizeModeSelect = document.getElementById("resizeMode");
+    const convertPngCheckbox = document.getElementById("convertPngToJpg");
+    const autoRotateCheckbox = document.getElementById("autoRotate");
 
     if (enabledCheckbox) {
       this.preprocessingSettings.enabled = enabledCheckbox.checked;
@@ -1181,6 +1334,14 @@ class LittleGallery {
 
     if (resizeModeSelect) {
       this.preprocessingSettings.resizeMode = resizeModeSelect.value;
+    }
+
+    if (convertPngCheckbox) {
+      this.preprocessingSettings.convertPngToJpg = convertPngCheckbox.checked;
+    }
+
+    if (autoRotateCheckbox) {
+      this.preprocessingSettings.autoRotate = autoRotateCheckbox.checked;
     }
 
     console.log("Preprocessing settings updated:", this.preprocessingSettings);
@@ -1210,6 +1371,8 @@ class LittleGallery {
         const qualitySlider = document.getElementById("imageQuality");
         const qualityValue = document.getElementById("qualityValue");
         const resizeModeSelect = document.getElementById("resizeMode");
+        const convertPngCheckbox = document.getElementById("convertPngToJpg");
+        const autoRotateCheckbox = document.getElementById("autoRotate");
 
         if (enabledCheckbox)
           enabledCheckbox.checked = this.preprocessingSettings.enabled;
@@ -1222,6 +1385,11 @@ class LittleGallery {
             Math.round(this.preprocessingSettings.quality * 100) + "%";
         if (resizeModeSelect)
           resizeModeSelect.value = this.preprocessingSettings.resizeMode;
+        if (convertPngCheckbox)
+          convertPngCheckbox.checked =
+            this.preprocessingSettings.convertPngToJpg;
+        if (autoRotateCheckbox)
+          autoRotateCheckbox.checked = this.preprocessingSettings.autoRotate;
 
         // 更新状态指示器
         this.updatePreprocessingStatusIndicator();
