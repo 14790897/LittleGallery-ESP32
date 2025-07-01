@@ -33,7 +33,7 @@
 
 ### 1. WiFi配置
 
-在 `include/secrets.h` 文件中修改WiFi配置：
+在 `include/secrets.h` 文件中修改WiFi配置(文件需要手动创建)：
 
 ```cpp
 const char* ssid = "YourWiFiSSID";        // 修改为您的WiFi名称
@@ -179,7 +179,6 @@ LittleGallery-ESP32/
 ## 扩展功能
 
 可以考虑添加的功能：
-- 图片幻灯片自动播放
 - 图片缩放和旋转
 - 更多图片格式支持
 - 图片元数据显示
