@@ -14,10 +14,6 @@ on:
         type: choice
         options:
         - airm2m_core_esp32c3
-        - esp32dev
-        - esp32-s2-saola-1
-        - esp32-s3-devkitc-1
-        - esp32-c3-devkitm-1
 
 jobs:
   build:
@@ -25,12 +21,7 @@ jobs:
     
     strategy:
       matrix:
-        environment: 
-          - airm2m_core_esp32c3
-          - esp32dev
-          - esp32-s2-saola-1
-          - esp32-s3-devkitc-1
-          - esp32-c3-devkitm-1
+        environment: [airm2m_core_esp32c3]
     
     steps:
     - name: Checkout repository
