@@ -727,3 +727,36 @@ header h1 {
     background: #fafafa;
     color: #757575;
 }
+
+/* 驱动控制样式 */
+.driver-controls {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff3cd;
+    border-radius: var(--border-radius);
+    border: 1px solid #ffeaa7;
+}
+
+.driver-controls h4 {
+    margin: 0 0 15px 0;
+    color: var(--text-color);
+    font-size: 1rem;
+}
+
+.driver-controls .control-group {
+    margin-bottom: 10px;
+}
+
+.driver-controls select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    background: white;
+    font-size: 0.9rem;
+}
+
+.driver-controls small {
+    color: #856404;
+    font-size: 0.8rem;
+}

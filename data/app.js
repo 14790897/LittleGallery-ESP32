@@ -801,6 +801,74 @@ class LittleGallery {
     }
   }
 
+  // ==================== 显示驱动控制函数 ====================
+
+  async updateDisplayDriverStatus() {
+    try {
+      const response = await fetch("/api/display-driver");
+      const data = await response.json();
+
+      if (data.status === "ok") {
+        // 更新当前驱动显示
+        const currentDriverElement = document.getElementById("currentDriver");
+        if (currentDriverElement) {
+          currentDriverElement.textContent = data.current_driver;
+        }
+
+        // 更新驱动选择器
+        const driverSelect = document.getElementById("displayDriver");
+        if (driverSelect) {
+          driverSelect.value = data.current_driver;
+        }
+      }
+    } catch (error) {
+      console.error("获取显示驱动状态失败:", error);
+      const currentDriverElement = document.getElementById("currentDriver");
+      if (currentDriverElement) {
+        currentDriverElement.textContent = "获取失败";
+      }
+    }
+  }
+
+  async switchDisplayDriver(driverName) {
+    if (!driverName) {
+      const driverSelect = document.getElementById("displayDriver");
+      driverName = driverSelect ? driverSelect.value : "ILI9341";
+    }
+
+    try {
+      this.showStatus(`正在切换到 ${driverName} 驱动...`, "info");
+
+      const response = await fetch("/api/display-driver", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `driver=${driverName}`,
+      });
+
+      const data = await response.json();
+
+      if (data.status === "ok") {
+        this.showStatus(
+          data.message || `已切换到 ${driverName} 驱动`,
+          "success"
+        );
+
+        // 更新状态显示
+        await this.updateDisplayDriverStatus();
+
+        // 刷新图片列表（因为显示可能需要重新初始化）
+        setTimeout(() => {
+          this.loadImageList();
+        }, 2000);
+      } else {
+        this.showStatus(data.message || "驱动切换失败", "error");
+      }
+    } catch (error) {
+      console.error("Switch display driver failed:", error);
+      this.showStatus("驱动切换请求失败: " + error.message, "error");
+    }
+  }
+
   async updateSystemStatus() {
     try {
       const response = await fetch("/api/status");
@@ -829,6 +897,9 @@ class LittleGallery {
           }
         }
       }
+
+      // 更新显示驱动状态
+      await this.updateDisplayDriverStatus();
     } catch (error) {
       console.error("获取系统状态失败:", error);
     }
@@ -1506,6 +1577,10 @@ function setSlideshowInterval() {
   const select = document.getElementById("slideshowInterval");
   const interval = parseInt(select.value);
   gallery.setSlideshowInterval(interval);
+}
+
+function switchDisplayDriver() {
+  gallery.switchDisplayDriver();
 }
 
 function selectAllImages() {

@@ -99,6 +99,8 @@ namespace WebServerManager
     void handleUploadStatusAPI(AsyncWebServerRequest *request);
     void handleSlideshowAPI(AsyncWebServerRequest *request);
     void handleSlideshowStatusAPI(AsyncWebServerRequest *request);
+    void handleDisplayDriverAPI(AsyncWebServerRequest *request);
+    void handleSetDisplayDriverAPI(AsyncWebServerRequest *request);
 
     // 文件上传处理
     static void handleFileUpload(AsyncWebServerRequest *request, String filename,

@@ -123,12 +123,30 @@
                     <span class="status-label">运行时间:</span>
                     <span class="status-value" id="uptime">计算中...</span>
                 </div>
+                <div class="status-item">
+                    <span class="status-label">显示驱动:</span>
+                    <span class="status-value" id="currentDriver">检查中...</span>
+                </div>
             </div>
 
             <div class="debug-controls">
                 <h4>🔧 调试工具</h4>
                 <button onclick="testDisplayColors()" class="debug-btn">🎨 测试显示颜色</button>
                 <button onclick="window.open('/debug.html', '_blank')" class="debug-btn">🐛 调试页面</button>
+            </div>
+
+            <div class="driver-controls">
+                <h4>🖥️ 显示驱动</h4>
+                <div class="control-group">
+                    <label for="displayDriver">选择驱动:</label>
+                    <select id="displayDriver" onchange="switchDisplayDriver()">
+                        <option value="ILI9341">ILI9341 (320x240)</option>
+                        <option value="ST7789">ST7789 (240x240)</option>
+                    </select>
+                </div>
+                <small style="color: #666; display: block; margin-top: 4px;">
+                    ⚠️ 切换驱动会重新初始化显示屏
+                </small>
             </div>
 
             <div class="orientation-controls">

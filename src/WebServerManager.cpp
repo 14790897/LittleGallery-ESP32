@@ -1,5 +1,5 @@
 #include "WebServer.h"
-#include "ILI9341.h"
+#include "DisplayDriver.h"
 #include "ImageDisplay.h"
 
 namespace WebServerManager
@@ -355,6 +355,12 @@ namespace WebServerManager
     server->on("/api/slideshow", HTTP_GET, [this](AsyncWebServerRequest *request)
                { handleSlideshowStatusAPI(request); });
 
+    // 显示驱动控制API
+    server->on("/api/display-driver", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleDisplayDriverAPI(request); });
+    server->on("/api/display-driver", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleSetDisplayDriverAPI(request); });
+
     // 添加OPTIONS请求处理 (CORS预检)
     server->on("/api/orientation", HTTP_OPTIONS, [](AsyncWebServerRequest *request)
                {
@@ -365,6 +371,14 @@ namespace WebServerManager
                  request->send(response); });
 
     server->on("/api/slideshow", HTTP_OPTIONS, [](AsyncWebServerRequest *request)
+               {
+                 AsyncWebServerResponse *response = request->beginResponse(200);
+                 response->addHeader("Access-Control-Allow-Origin", "*");
+                 response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                 response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+                 request->send(response); });
+
+    server->on("/api/display-driver", HTTP_OPTIONS, [](AsyncWebServerRequest *request)
                {
                  AsyncWebServerResponse *response = request->beginResponse(200);
                  response->addHeader("Access-Control-Allow-Origin", "*");
@@ -1089,5 +1103,86 @@ namespace WebServerManager
     request->send(apiResponse);
 
     Serial.println("Slideshow status API response sent");
+  }
+
+  void WebServerController::handleDisplayDriverAPI(AsyncWebServerRequest *request)
+  {
+    Serial.printf("Processing display driver API request: %s %s\n",
+                  request->methodToString(), request->url().c_str());
+
+    JsonDocument doc;
+    doc["current_driver"] = Display::getCurrentDriverName();
+    doc["current_driver_type"] = (int)Display::getCurrentDriver();
+    doc["available_drivers"] = JsonArray();
+    doc["available_drivers"].add("ILI9341");
+    doc["available_drivers"].add("ST7789");
+    doc["status"] = "ok";
+
+    String response;
+    serializeJson(doc, response);
+
+    AsyncWebServerResponse *apiResponse = request->beginResponse(200, "application/json", response);
+    apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(apiResponse);
+
+    Serial.println("Display driver API response sent");
+  }
+
+  void WebServerController::handleSetDisplayDriverAPI(AsyncWebServerRequest *request)
+  {
+    Serial.printf("Processing set display driver API request: %s %s\n",
+                  request->methodToString(), request->url().c_str());
+
+    JsonDocument doc;
+
+    if (request->hasParam("driver", true))
+    {
+      String driverName = request->getParam("driver", true)->value();
+      DisplayDriverType driverType;
+
+      if (driverName == "ILI9341")
+      {
+        driverType = DRIVER_ILI9341;
+      }
+      else if (driverName == "ST7789")
+      {
+        driverType = DRIVER_ST7789;
+      }
+      else
+      {
+        doc["status"] = "error";
+        doc["message"] = "Unknown driver type: " + driverName;
+      }
+
+      if (doc["status"] != "error")
+      {
+        if (Display::switchDriver(driverType))
+        {
+          doc["status"] = "ok";
+          doc["current_driver"] = Display::getCurrentDriverName();
+          doc["current_driver_type"] = (int)Display::getCurrentDriver();
+          doc["message"] = "Display driver switched to " + driverName;
+        }
+        else
+        {
+          doc["status"] = "error";
+          doc["message"] = "Failed to switch to " + driverName + " driver";
+        }
+      }
+    }
+    else
+    {
+      doc["status"] = "error";
+      doc["message"] = "Missing driver parameter";
+    }
+
+    String response;
+    serializeJson(doc, response);
+
+    AsyncWebServerResponse *apiResponse = request->beginResponse(200, "application/json", response);
+    apiResponse->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(apiResponse);
+
+    Serial.println("Set display driver API response sent");
   }
 }

@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <LittleFS.h>
 #include "secrets.h"
-#include "ILI9341.h"
+#include "DisplayDriver.h"
 #include "WebServer.h"
 #include "ImageDisplay.h"
 
@@ -27,8 +27,8 @@ void setup()
 
   Serial.println("Starting Little Gallery ESP32...");
 
-  // 初始化显示屏
-  Display::setup();
+  // 初始化显示屏 (默认使用ILI9341)
+  Display::setup(DRIVER_ILI9341);
 
   // 初始化图片显示
   ImageDisplay::setup();

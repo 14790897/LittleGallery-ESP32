@@ -1,11 +1,9 @@
-#include "ILI9341.h"
+#include "ILI9341Driver.h"
 #include <WiFi.h>
 
 namespace Display
 {
-  // 全局显示管理器实例
-  ILI9341Manager displayManager;
-  
+
   // ==================== ILI9341Manager 类实现 ====================
   
   bool ILI9341Manager::begin()
