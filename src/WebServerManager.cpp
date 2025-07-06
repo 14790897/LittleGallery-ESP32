@@ -757,10 +757,10 @@ namespace WebServerManager
     Serial.println("Starting display color test...");
 
     // 获取显示屏引用
-    auto &tft = Display::getTFT();
+    auto &gfx = Display::displayManager.getGFX();
 
     // 清屏
-    tft.fillScreen(0x0000); // 黑色 (ILI9341_BLACK)
+    Display::displayManager.fillScreen(0x0000); // 黑色
 
     // 定义测试颜色（使用直接的RGB565值）
     const uint16_t colors[] = {
@@ -782,24 +782,24 @@ namespace WebServerManager
 
     for (int i = 0; i < 7; i++)
     {
-      tft.fillRect(i * barWidth, 50, barWidth, barHeight, colors[i]);
+      Display::displayManager.fillRect(i * barWidth, 50, barWidth, barHeight, colors[i]);
       Serial.printf("Color %s: 0x%04X\n", colorNames[i], colors[i]);
     }
 
     // 显示RGB565格式说明
-    tft.setTextColor(0xFFFF); // 白色 (ILI9341_WHITE)
-    tft.setTextSize(1);
-    tft.setCursor(10, 10);
-    tft.print("RGB565 Color Test");
+    gfx.setTextColor(0xFFFF); // 白色
+    gfx.setTextSize(1);
+    gfx.setCursor(10, 10);
+    gfx.print("RGB565 Color Test");
 
-    tft.setCursor(10, 130);
-    tft.print("Format: RGB565 (16-bit)");
-    tft.setCursor(10, 150);
-    tft.print("Screen: 320x240");
+    gfx.setCursor(10, 130);
+    gfx.print("Format: RGB565 (16-bit)");
+    gfx.setCursor(10, 150);
+    gfx.print("Screen: 320x240");
 
     // 显示内存信息
-    tft.setCursor(10, 180);
-    tft.printf("Free Heap: %d KB", ESP.getFreeHeap() / 1024);
+    gfx.setCursor(10, 180);
+    gfx.printf("Free Heap: %d KB", ESP.getFreeHeap() / 1024);
 
     Serial.println("Color test display completed");
 
@@ -807,7 +807,7 @@ namespace WebServerManager
     delay(3000);
 
     // 清屏
-    tft.fillScreen(0x0000); // 黑色 (ILI9341_BLACK)
+    Display::displayManager.fillScreen(0x0000); // 黑色
 
     Serial.println("Color test finished");
   }

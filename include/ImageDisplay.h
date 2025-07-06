@@ -3,7 +3,7 @@
 
 #include <LittleFS.h>
 #include <TJpg_Decoder.h>
-#include "ILI9341.h"
+#include "DisplayDriver.h"
 #include "secrets.h"
 
 namespace ImageDisplay

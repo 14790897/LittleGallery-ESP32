@@ -1,5 +1,5 @@
 #include "ImageDisplay.h"
-#include "ILI9341.h"
+#include "DisplayDriver.h"
 
 namespace ImageDisplay
 {
@@ -128,10 +128,11 @@ namespace ImageDisplay
 bool ImageDisplayManager::jpegOutputCallback(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap)
 {
     // 如果图像的y坐标超出了屏幕底部，则停止解码
-    if (y >= Display::getTFT().height()) return 0;
+    if (y >= Display::displayManager.getHeight())
+      return 0;
 
     // drawRGBBitmap函数将自动处理屏幕边界的图像块裁剪
-    Display::getTFT().drawRGBBitmap(x, y, bitmap, w, h);
+    Display::displayManager.getGFX().drawRGBBitmap(x, y, bitmap, w, h);
 
     // 返回1以继续解码下一个块
     return 1;
@@ -286,7 +287,7 @@ bool ImageDisplayManager::displayBMP(const char *filename)
                   header.width, header.height, header.bitsPerPixel);
     
     // 清屏
-    Display::getTFT().fillScreen(ILI9341_BLACK);
+    Display::displayManager.fillScreen(0x0000); // 黑色
 
     // 计算居中位置
     int16_t startX = (SCREEN_WIDTH - header.width) / 2;
@@ -333,7 +334,7 @@ bool ImageDisplayManager::displayBMP(const char *filename)
             // 转换为16位RGB565格式
             uint16_t color = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 
-            Display::getTFT().drawPixel(startX + x, startY + y, color);
+            Display::displayManager.drawPixel(startX + x, startY + y, color);
         }
     }
     
@@ -495,14 +496,14 @@ bool ImageDisplayManager::displayBMP(const char *filename)
     {
       // 旋转到竖屏模式 (240x320)
       currentRotation = 0;
-      Display::getTFT().setRotation(0);
+      Display::displayManager.setRotation(0);
       Serial.println("Screen rotated to portrait mode (240x320)");
     }
     else
     {
       // 保持横屏模式 (320x240)
       currentRotation = 1;
-      Display::getTFT().setRotation(1);
+      Display::displayManager.setRotation(1);
       Serial.println("Screen kept in landscape mode (320x240)");
     }
   }
