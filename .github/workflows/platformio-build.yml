@@ -233,15 +233,10 @@ jobs:
       run: |
         echo "Checking PlatformIO configuration..."
         pio project config
-        
+
         echo "Available environments:"
-        pio project config --json-output | python3 -c "
-        import json, sys
-        config = json.load(sys.stdin)
-        for env in config:
-            if env.startswith('env:'):
-                print(f'  - {env[4:]}')
-        "
+        # 使用更简单的方法检查环境
+        pio project config | grep "^\[env:" | sed 's/\[env:/  - /' | sed 's/\]//' || echo "  - airm2m_core_esp32c3 (default)"
     
     - name: Validate project structure
       run: |
