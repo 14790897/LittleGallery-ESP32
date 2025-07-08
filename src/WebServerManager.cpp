@@ -505,6 +505,7 @@ namespace WebServerManager
 
     doc["wifi"] = isWiFiConnected();
     doc["ip"] = getIPAddress();
+    doc["mdns"] = String(MDNS_HOSTNAME) + ".local";
     doc["uptime"] = millis() / 1000; // 运行时间（秒）
 
     // 获取存储信息

@@ -878,6 +878,12 @@ class LittleGallery {
         ? "已连接"
         : "未连接";
       document.getElementById("ipAddress").textContent = data.ip || "未知";
+      const mdnsElement = document.getElementById("mdnsAddress");
+      if (data.mdns) {
+        mdnsElement.innerHTML = `<a href="http://${data.mdns}" target="_blank" style="color: #007bff; text-decoration: none;">${data.mdns}</a>`;
+      } else {
+        mdnsElement.textContent = "未知";
+      }
       document.getElementById("storageInfo").textContent =
         data.storage || "计算中...";
       document.getElementById("uptime").textContent =

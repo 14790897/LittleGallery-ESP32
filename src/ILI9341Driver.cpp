@@ -191,10 +191,16 @@ namespace Display
   void ILI9341Driver::showWiFiConnected(const String& ipAddress)
   {
     clearScreen(ILI9341_BLACK);
-    displayCenteredText("WiFi Connected!", 80, ILI9341_GREEN, 2);
-    displayCenteredText("IP Address:", 110, ILI9341_WHITE, 1);
-    displayCenteredText(ipAddress.c_str(), 130, ILI9341_CYAN, 1);
-    displayCenteredText("Ready to display images!", 160, ILI9341_YELLOW, 1);
+    displayCenteredText("WiFi Connected!", 60, ILI9341_GREEN, 2);
+
+    displayCenteredText("IP Address:", 90, ILI9341_WHITE, 1);
+    displayCenteredText(ipAddress.c_str(), 105, ILI9341_CYAN, 1);
+
+    displayCenteredText("mDNS Address:", 125, ILI9341_WHITE, 1);
+    String mdnsAddr = String(MDNS_HOSTNAME) + ".local";
+    displayCenteredText(mdnsAddr.c_str(), 140, ILI9341_MAGENTA, 1);
+
+    displayCenteredText("Ready to display images!", 170, ILI9341_YELLOW, 1);
   }
   
   void ILI9341Driver::showSystemInfo(const String& info)

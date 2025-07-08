@@ -191,10 +191,16 @@ namespace Display
   void ST7789Driver::showWiFiConnected(const String& ipAddress)
   {
     clearScreen(ST77XX_BLACK);
-    displayCenteredText("WiFi Connected!", 80, ST77XX_GREEN, 2);
-    displayCenteredText("IP Address:", 110, ST77XX_WHITE, 1);
-    displayCenteredText(ipAddress.c_str(), 130, ST77XX_CYAN, 1);
-    displayCenteredText("Ready to display images!", 160, ST77XX_YELLOW, 1);
+    displayCenteredText("WiFi Connected!", 60, ST77XX_GREEN, 2);
+
+    displayCenteredText("IP Address:", 90, ST77XX_WHITE, 1);
+    displayCenteredText(ipAddress.c_str(), 105, ST77XX_CYAN, 1);
+
+    displayCenteredText("mDNS Address:", 125, ST77XX_WHITE, 1);
+    String mdnsAddr = String(MDNS_HOSTNAME) + ".local";
+    displayCenteredText(mdnsAddr.c_str(), 140, ST77XX_MAGENTA, 1);
+
+    displayCenteredText("Ready to display images!", 170, ST77XX_YELLOW, 1);
   }
   
   void ST7789Driver::showSystemInfo(const String& info)

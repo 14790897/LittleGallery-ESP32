@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <LittleFS.h>
+#include <ESPmDNS.h>
 #include "secrets.h"
 #include "DisplayDriver.h"
 #include "WebServer.h"
@@ -47,6 +48,23 @@ void setup()
 
   // 显示连接成功信息
   if (WebServerManager::isWiFiConnected()) {
+    // 初始化mDNS
+    if (MDNS.begin(MDNS_HOSTNAME))
+    {
+      Serial.println("mDNS responder started");
+      Serial.printf("Access via: http://%s.local\n", MDNS_HOSTNAME);
+
+      // 添加服务描述
+      MDNS.addService("http", "tcp", 80);
+      MDNS.addServiceTxt("http", "tcp", "board", "ESP32-C3");
+      MDNS.addServiceTxt("http", "tcp", "app", "LittleGallery");
+      MDNS.addServiceTxt("http", "tcp", "version", "1.0.0");
+    }
+    else
+    {
+      Serial.println("Error setting up mDNS responder!");
+    }
+
     Display::displayManager.showWiFiConnected(WebServerManager::getIPAddress());
     delay(3000); // 显示连接信息3秒
   }
