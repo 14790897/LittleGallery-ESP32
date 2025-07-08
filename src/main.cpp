@@ -27,8 +27,11 @@ void setup()
 
   Serial.println("Starting Little Gallery ESP32...");
 
-  // 初始化显示屏 (默认使用ILI9341)
-  Display::setup(DRIVER_ILI9341);
+  // 初始化显示屏 (从platformio.ini配置中读取)
+#ifndef DEFAULT_DISPLAY_DRIVER
+#define DEFAULT_DISPLAY_DRIVER DRIVER_ILI9341 // 默认备选
+#endif
+  Display::setup(DEFAULT_DISPLAY_DRIVER);
 
   // 初始化图片显示
   ImageDisplay::setup();
